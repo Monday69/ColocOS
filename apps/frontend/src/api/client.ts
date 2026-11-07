@@ -64,12 +64,22 @@ class ApiClient {
   // Inventory
   addToInventory = (data: AddToInventoryPayload) =>
     this.request('/inventory/items', { method: 'POST', body: JSON.stringify(data) });
+  consumeItem = async (id: string, quantity = 1): Promise<void> => {
+    await this.request(`/inventory/items/${id}/consume`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity }),
+    });
+  };
   getStorageZones = () =>
-    this.request<Array<{ id: string; meshId: string; label: string; type: string }>>('/inventory/zones');
+    this.request<Array<{ id: string; meshId: string; label: string; type: string }>>('/fridge/zones');
 
   // Recipes
-  getRecipeSuggestions = (limit = 8) =>
-    this.request<RecipeSuggestion[]>(`/recipes/suggest?limit=${limit}`);
+  getRecipeSuggestions = async (limit = 8): Promise<RecipeSuggestion[]> => {
+    const response = await this.request<{ suggestions?: RecipeSuggestion[] }>(
+      `/recipes/suggest?limit=${limit}`,
+    );
+    return response.suggestions ?? [];
+  };
   toggleFavoriteRecipe = (recipeId: string) =>
     this.request<{ isFavorite: boolean }>(`/recipes/${recipeId}/favorite`, { method: 'POST' });
 }

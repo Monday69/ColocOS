@@ -128,6 +128,27 @@ export const toasts = {
   },
 
   /**
+   * Item consommé depuis le panneau de zone (Digital Twin)
+   */
+  consumed: (itemName: string, quantity: number, unit: string) => {
+    playBlip('success');
+    toast.success('Produit consommé', {
+      description: `${itemName}   −${Number(quantity.toFixed(2))} ${unit}`,
+      style: {
+        background: '#0f1114',
+        border: '1px solid #00e67640',
+        boxShadow: '0 0 16px #00e67615, 0 8px 32px rgba(0,0,0,0.6)',
+        color: '#e8eaf0',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px',
+        borderRadius: '10px',
+      },
+      icon: '✓',
+      duration: 2200,
+    });
+  },
+
+  /**
    * Item ajouté à la liste de courses
    */
   addItem: (itemName: string, addedByColor?: string) => {

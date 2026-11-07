@@ -356,6 +356,7 @@ export class StorageService {
    */
   async listZones(): Promise<
     Array<{
+      id: string;
       meshId: string;
       label: string;
       type: string;
@@ -366,6 +367,7 @@ export class StorageService {
   > {
     const zones = await prisma.storageZone.findMany({
       select: {
+        id: true,
         meshId: true,
         label: true,
         type: true,
@@ -379,6 +381,7 @@ export class StorageService {
     });
 
     return zones.map((z) => ({
+      id: z.id,
       meshId: z.meshId,
       label: z.label,
       type: z.type,

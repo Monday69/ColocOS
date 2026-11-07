@@ -176,13 +176,8 @@ export interface ScannedProduct {
   nutriscore: string | null;
   quantity: string | null;
   fromCache: boolean;
-  /** Données nutritionnelles (si disponibles depuis OpenFoodFacts) */
-  nutriments?: {
-    energy_kcal?: number;
-    proteins?: number;
-    carbohydrates?: number;
-    fat?: number;
-  };
+  /** Énergie pour 100 g — renvoyée à plat par le ScannerService (OFF) */
+  kcalPer100g?: number | null;
 }
 
 export interface AddToInventoryPayload {
@@ -192,7 +187,7 @@ export interface AddToInventoryPayload {
   imageUrl?: string | null;
   nutriscore?: string | null;
   quantity: number;
-  unit: string;
+  unit: 'g' | 'kg' | 'ml' | 'L' | 'unit';
   storageZoneId: string;
   expiryDate?: string | null;
   isShared: boolean;

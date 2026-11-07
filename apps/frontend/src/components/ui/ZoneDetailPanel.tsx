@@ -1,11 +1,23 @@
+import { useCallback, useState } from 'react';
+import { Loader2, Minus, Trash2 } from 'lucide-react';
 import { useZoneDetail } from '@/hooks/useZoneDetail';
 import { HEALTH_COLORS } from '@/lib/healthColors';
+import { api } from '@/api/client';
+import { useFridgeStore, useUIStore } from '@/store';
+import { toasts } from '@/components/ui/ToastProvider';
 import type { ZoneItemDetail } from '@/types';
 import clsx from 'clsx';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Zone Detail Panel
 // Panneau latéral droit — glisse au clic sur une zone 3D
+//
+// Chaque item expose deux actions de consommation :
+//   −  : consomme une portion (1 pour les unités, 100 g/ml, 0.1 kg/L)
+//   🗑 : consomme la totalité du stock restant (déclenche le réappro auto
+//        côté backend si l'item est partagé)
+// Après succès : refetch /fridge/state + détail de la zone → couleurs et
+// compteurs des meshes 3D mis à jour immédiatement.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function NutriScoreBadge({ score }: { score: string | null }) {
@@ -49,7 +61,30 @@ function ExpiryBadge({ days }: { days: number | null }) {
   );
 }
 
-function ItemRow({ item }: { item: ZoneItemDetail }) {
+/** Portion consommée par le bouton rapide −, exprimée dans l'unité de l'item. */
+function consumePortion(item: ZoneItemDetail): number {
+  switch (item.unit) {
+    case 'kg':
+    case 'L':
+      return 0.1;
+    case 'g':
+    case 'ml':
+      return 100;
+    case 'unit':
+    default:
+      return 1;
+  }
+}
+
+function ItemRow({
+  item,
+  isConsuming,
+  onConsume,
+}: {
+  item: ZoneItemDetail;
+  isConsuming: boolean;
+  onConsume: (item: ZoneItemDetail, quantity: number) => void;
+}) {
   return (
     <div className="flex items-start gap-2 py-2 border-b border-surface-border/50 last:border-0">
       {/* Owner color dot */}
@@ -76,12 +111,94 @@ function ItemRow({ item }: { item: ZoneItemDetail }) {
         </span>
         <ExpiryBadge days={item.daysUntilExpiry} />
       </div>
+
+      {/* Actions de consommation */}
+      <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+        {isConsuming ? (
+          <div className="w-12 h-6 flex items-center justify-center">
+            <Loader2 size={12} className="animate-spin text-text-tertiary" />
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => onConsume(item, Math.min(consumePortion(item), item.quantity))}
+              title="Consommer une portion"
+              aria-label={`Consommer une portion de ${item.name}`}
+              className="w-6 h-6 rounded border border-surface-border/60 flex items-center justify-center
+                         text-text-tertiary hover:text-accent hover:border-accent/50 hover:bg-accent/10
+                         transition-all duration-150"
+            >
+              <Minus size={11} />
+            </button>
+            <button
+              onClick={() => onConsume(item, item.quantity)}
+              title="Tout consommer"
+              aria-label={`Consommer tout le stock de ${item.name}`}
+              className="w-6 h-6 rounded border border-surface-border/60 flex items-center justify-center
+                         text-text-tertiary hover:text-health-critical hover:border-health-critical/50
+                         hover:bg-health-critical/10 transition-all duration-150"
+            >
+              <Trash2 size={11} />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 export function ZoneDetailPanel() {
   const { zoneDetail, isPanelOpen, isDetailLoading, closePanel } = useZoneDetail();
+  const { setFridgeState } = useFridgeStore();
+  const setZoneDetail = useUIStore((s) => s.setZoneDetail);
+  const [consumingId, setConsumingId] = useState<string | null>(null);
+
+  const handleConsume = useCallback(
+    async (item: ZoneItemDetail, requestedQuantity: number) => {
+      if (consumingId) return;
+
+      const quantity = Math.min(requestedQuantity, item.quantity);
+      if (!(quantity > 0)) return;
+
+      setConsumingId(item.id);
+      try {
+        await api.consumeItem(item.id, quantity);
+        toasts.consumed(item.name, quantity, item.unit);
+
+        // Refetch parallèle : état 3D (couleurs/compteurs) + détail du panneau
+        const meshId = zoneDetail?.meshId;
+        const [freshState, freshDetail] = await Promise.all([
+          api.getFridgeState(),
+          meshId ? api.getZoneDetail(meshId).catch(() => null) : Promise.resolve(null),
+        ]);
+
+        setFridgeState(freshState);
+        if (freshDetail) {
+          setZoneDetail(freshDetail);
+        } else if (zoneDetail) {
+          // Fallback local : retire l'item (épuisé → supprimé côté serveur)
+          const exhausted = quantity >= item.quantity;
+          setZoneDetail({
+            ...zoneDetail,
+            items: exhausted
+              ? zoneDetail.items.filter((i) => i.id !== item.id)
+              : zoneDetail.items.map((i) =>
+                  i.id === item.id ? { ...i, quantity: i.quantity - quantity } : i,
+                ),
+            itemCount: exhausted ? Math.max(0, zoneDetail.itemCount - 1) : zoneDetail.itemCount,
+          });
+        }
+      } catch (err) {
+        toasts.error(
+          'Consommation impossible',
+          err instanceof Error ? err.message : 'Erreur serveur',
+        );
+      } finally {
+        setConsumingId(null);
+      }
+    },
+    [consumingId, zoneDetail, setFridgeState, setZoneDetail],
+  );
 
   const healthColor = zoneDetail
     ? HEALTH_COLORS[zoneDetail.healthStatus]
@@ -183,7 +300,12 @@ export function ZoneDetailPanel() {
               <div>
                 <div className="label-section mb-2">CONTENU</div>
                 {zoneDetail?.items.map((item) => (
-                  <ItemRow key={item.id} item={item} />
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    isConsuming={consumingId === item.id}
+                    onConsume={handleConsume}
+                  />
                 ))}
               </div>
             )}

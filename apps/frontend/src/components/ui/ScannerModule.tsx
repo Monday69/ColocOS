@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Scan, Search, X, Check, ChevronRight,
   AlertTriangle, Loader2, Package2,
-  Thermometer, Zap, Beef, Wheat,
+  Zap,
   Camera, CameraOff, ZapOff,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -54,15 +54,50 @@ function NutriscoreBadge({ score }: { score: string }) {
   );
 }
 
-function MacroPill({ icon, label, value, unit, color }: { icon: React.ReactNode; label: string; value: number | undefined; unit: string; color: string }) {
-  if (value === undefined) return null;
-  return (
-    <div className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 min-w-0">
-      <div style={{ color }}>{icon}</div>
-      <span className="font-mono text-xs font-500 text-text-primary">{Math.round(value)}{unit}</span>
-      <span className="font-display text-2xs text-text-tertiary tracking-wider">{label}</span>
-    </div>
-  );
+// ── Normalisation payload ↔ contrat backend ──────────────────────────────────
+// Le backend (CreateItemSchema) n'accepte que l'enum Unit de Prisma.
+// L'UI propose des libellés FR ('unité') et le centilitre ('cl') qui n'existent
+// pas côté API : on convertit donc valeur + unité avant l'envoi.
+
+type ApiUnit = 'g' | 'kg' | 'ml' | 'L' | 'unit';
+
+function normalizeQuantityAndUnit(rawQuantity: number, rawUnit: string): {
+  quantity: number;
+  unit: ApiUnit;
+} {
+  switch (rawUnit) {
+    case 'unité':
+      return { quantity: rawQuantity, unit: 'unit' };
+    case 'cl':
+      // 1 cl = 10 ml — la quantité est convertie pour rester cohérente
+      return { quantity: Math.round(rawQuantity * 1000) / 100, unit: 'ml' };
+    case 'g':
+    case 'kg':
+    case 'ml':
+    case 'L':
+      return { quantity: rawQuantity, unit: rawUnit };
+    default:
+      return { quantity: rawQuantity, unit: 'unit' };
+  }
+}
+
+// Le backend exige un datetime ISO 8601 complet ; <input type="date"> renvoie YYYY-MM-DD
+function toExpiryIso(dateInput: string): string | null {
+  if (!dateInput) return null;
+  const parsed = new Date(dateInput);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+// ── Résolution meshId 3D → UUID de StorageZone ───────────────────────────────
+// GET /fridge/zones est la seule route exposant les deux identifiants.
+
+type StorageZoneOption = { id: string; meshId: string; label: string; type: string };
+
+let storageZonesCache: StorageZoneOption[] | null = null;
+
+async function resolveStorageZoneId(meshId: string): Promise<string | null> {
+  if (!storageZonesCache) storageZonesCache = await api.getStorageZones();
+  return storageZonesCache.find((zone) => zone.meshId === meshId)?.id ?? null;
 }
 
 const GROUP_LABELS: Record<string, string> = {
@@ -133,7 +168,32 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
     if (!selectedMeshId) return;
     setIsConfirming(true);
     try {
-      await api.addToInventory({ barcode: product.barcode || undefined, name: product.name, brand: product.brand, imageUrl: product.imageUrl, nutriscore: product.nutriscore, quantity: parseFloat(quantity), unit, storageZoneId: selectedMeshId, expiryDate: expiryDate || null, isShared });
+      const storageZoneId = await resolveStorageZoneId(selectedMeshId);
+      if (!storageZoneId) {
+        toasts.error(
+          'Zone introuvable',
+          `Aucune zone de stockage ne correspond à « ${selectedLabel || selectedMeshId} ».`,
+        );
+        return;
+      }
+
+      const { quantity: apiQuantity, unit: apiUnit } = normalizeQuantityAndUnit(
+        parseFloat(quantity),
+        unit,
+      );
+
+      await api.addToInventory({
+        barcode: product.barcode || undefined,
+        name: product.name,
+        brand: product.brand,
+        imageUrl: product.imageUrl,
+        nutriscore: product.nutriscore,
+        quantity: apiQuantity,
+        unit: apiUnit,
+        storageZoneId,
+        expiryDate: toExpiryIso(expiryDate),
+        isShared,
+      });
       const newState = await api.getFridgeState();
       setFridgeState(newState);
       toasts.productAdded(product.name, selectedLabel);
@@ -164,12 +224,12 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
           </div>
           <button onClick={onDismiss} className="text-text-tertiary hover:text-text-primary p-1 flex-shrink-0"><X size={14} /></button>
         </div>
-        {product.nutriments && (
-          <div className="grid grid-cols-4 gap-1.5 mt-3">
-            <MacroPill icon={<Zap size={10} />} label="KCAL" value={product.nutriments.energy_kcal} unit="" color="#f59e0b" />
-            <MacroPill icon={<Beef size={10} />} label="PROT" value={product.nutriments.proteins} unit="g" color="#4fc3f7" />
-            <MacroPill icon={<Wheat size={10} />} label="GLUCIDES" value={product.nutriments.carbohydrates} unit="g" color="#a78bfa" />
-            <MacroPill icon={<Thermometer size={10} />} label="FAT" value={product.nutriments.fat} unit="g" color="#fb7185" />
+        {typeof product.kcalPer100g === 'number' && (
+          <div className="flex items-center gap-1.5 mt-3 px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 w-fit">
+            <Zap size={10} className="text-amber-400" />
+            <span className="font-mono text-xs font-500 text-text-primary">
+              {Math.round(product.kcalPer100g)} kcal / 100g
+            </span>
           </div>
         )}
       </div>
