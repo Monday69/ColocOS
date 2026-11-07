@@ -4,7 +4,7 @@ import { animated } from '@react-spring/three';
 import * as THREE from 'three';
 import { useInteractiveDoor } from '@/hooks/useInteractiveDoor';
 import { useFridgeAudio } from '@/hooks/useFridgeAudio';
-import { useNavStore, useAudioStore } from '@/store';
+import { useNavStore } from '@/store';
 import { ZONE_LAYOUT } from '@/lib/zoneLayout';
 import { StorageBox } from './StorageBox';
 import type { ZoneTwin } from '@/types';
@@ -37,9 +37,6 @@ import { toasts } from '@/components/ui/ToastProvider';
 
 const DOOR_ZONES = ['fridge_door_shelf_1', 'fridge_door_shelf_2', 'fridge_door_shelf_3'];
 
-// Zones des étagères intérieures (désactivées quand la porte est fermée)
-const INTERIOR_ZONE_GROUPS = ['fridge', 'freezer'] as const;
-
 interface InteractiveDoorProps {
   /** Map des zones twin pour hydrater les StorageBox de la porte */
   zones: Record<string, ZoneTwin>;
@@ -49,7 +46,6 @@ interface InteractiveDoorProps {
 export function InteractiveDoor({ zones, onZoneSelect }: InteractiveDoorProps) {
   const { bind, rotY, lightIntensity, toggleDoor, angleRef } = useInteractiveDoor();
   const { isDoorOpen } = useNavStore();
-  const { isMuted } = useAudioStore();
 
   // ── Audio — reçoit angleRef pour la synchronisation frame-par-frame ──────
   // useFridgeAudio lit angleRef.current dans useFrame (thread RAF)

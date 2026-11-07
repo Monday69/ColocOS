@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ShoppingCart, Plus, Check, Sparkles, Trash2,
-  Loader2, AlertCircle, PackageSearch, X,
+  ShoppingCart, Plus, Check, Sparkles,
+  Loader2, AlertCircle, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useShopping } from '@/hooks/useShopping';

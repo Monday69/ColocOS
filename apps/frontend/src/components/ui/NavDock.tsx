@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Refrigerator, Wallet, ShoppingCart, Scan, ChefHat } from 'lucide-react';
 import clsx from 'clsx';

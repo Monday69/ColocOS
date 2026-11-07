@@ -140,7 +140,6 @@ const FR_TO_EN_DICT: Record<string, string> = {
   'bouillon de bœuf': 'beef broth',
   'coulis de tomates': 'tomato sauce',
   'concentré de tomates': 'tomato paste',
-  tomates: 'tomatoes',
   'tomates concassées': 'crushed tomatoes',
   vinaigre: 'vinegar',
   'vinaigre balsamique': 'balsamic vinegar',

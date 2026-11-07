@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, WifiOff, CloudOff } from 'lucide-react';
+import { Volume2, VolumeX, CloudOff } from 'lucide-react';
 import clsx from 'clsx';
 import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue } from '@/store';
 import { HEALTH_COLORS } from '@/lib/healthColors';

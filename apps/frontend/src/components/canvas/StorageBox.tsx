@@ -35,7 +35,7 @@ export function StorageBox({ layout, zoneTwin, onSelect, disabled = false }: Sto
   const meshRef   = useRef<THREE.Mesh>(null!);
   const timeRef   = useRef(0);
   const [hovered, setHovered] = useState(false);
-  const { hoveredMeshId, selectedMeshId, setHoveredMesh } = useUIStore();
+  const { selectedMeshId, setHoveredMesh } = useUIStore();
   const { highlightedOwnerColor, highlightedMeshIds } = useBridge();
 
   const isSelected = selectedMeshId === layout.meshId;

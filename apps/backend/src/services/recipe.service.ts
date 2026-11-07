@@ -1,5 +1,4 @@
 import { prisma } from '../config/prisma';
-import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
 import { inventoryService } from './inventory.service';
@@ -155,7 +154,7 @@ export class RecipeService {
     );
 
     // ── Étape 3 : Cache BDD ───────────────────────────────────────────────────
-    const cacheKey = ingredientNames.sort().join(',');
+    ingredientNames.sort();
     const cacheThreshold = new Date(
       Date.now() - RECIPE_CACHE_TTL_HOURS * 60 * 60 * 1000,
     );

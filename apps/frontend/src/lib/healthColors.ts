@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { HealthStatus, FillStatus } from '@/types';
+import type { HealthStatus } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — 3D Color System

@@ -2,7 +2,6 @@ import { useRef, useCallback } from 'react';
 import { useSpring, type SpringConfig } from '@react-spring/three';
 import { useDrag } from '@use-gesture/react';
 import { useNavStore } from '@/store';
-import { useThree } from '@react-three/fiber';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — useInteractiveDoor Hook
@@ -75,7 +74,6 @@ export interface DoorSpringValues {
 }
 
 export function useInteractiveDoor() {
-  const { size } = useThree();
   const { setDoorOpen } = useNavStore();
 
   // Angle courant pendant le drag (ref pour éviter les re-renders inutiles)

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChefHat, Clock, Star, StarOff, ExternalLink,
-  Loader2, AlertCircle, Sparkles, CheckCircle2,
+  ChefHat, Clock, Star, ExternalLink,
+  AlertCircle, Sparkles, CheckCircle2,
   AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
