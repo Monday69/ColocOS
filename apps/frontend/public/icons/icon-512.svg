@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#16191f"/>
+      <stop offset="100%" stop-color="#0a0b0d"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="71" fill="url(#bg)"/>
+  <!-- Outer border glow -->
+  <rect x="12" y="12" width="488" height="488" rx="61" fill="none" stroke="#4fc3f7" stroke-width="6" opacity="0.35"/>
+  <!-- Fridge body -->
+  <rect x="112" y="92" width="286" height="332" rx="20" fill="#1a1d24" stroke="#2a2d35" stroke-width="5"/>
+  <!-- Freezer compartment -->
+  <rect x="112" y="92" width="286" height="92" rx="20" fill="#14161a" stroke="#2a2d35" stroke-width="5"/>
+  <!-- Divider line -->
+  <line x1="112" y1="184" x2="398" y2="184" stroke="#2a2d35" stroke-width="5"/>
+  <!-- Door handle — cyan accent -->
+  <rect x="378" y="198" width="20" height="99" rx="10" fill="#4fc3f7" filter="url(#glow)"/>
+  <!-- LED strip top glow -->
+  <rect x="155" y="199" width="200" height="7" rx="3" fill="#4fc3f7" opacity="0.7" filter="url(#glow)"/>
+  <!-- COLOC text (simplified as accent line) -->
+  <line x1="154" y1="333" x2="289" y2="333" stroke="#4fc3f7" stroke-width="12" stroke-linecap="round" opacity="0.5"/>
+</svg>

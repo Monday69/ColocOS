@@ -1,0 +1,41 @@
+import { z } from 'zod';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().default(3001),
+  DATABASE_URL: z.string().url(),
+
+  // ── JWT ──────────────────────────────────────────────────────────────────────
+  // Deux secrets distincts : compromission d'un seul ne suffit pas à forger les deux types de tokens
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET doit faire au moins 32 caractères'),
+  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET doit faire au moins 32 caractères'),
+  // Access token court (15min), refresh token long (30j) — configurables
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+
+  // ── Services externes ─────────────────────────────────────────────────────
+  REDIS_URL: z.string().optional(),
+  OPENFOODFACTS_BASE_URL: z
+    .string()
+    .url()
+    .default('https://world.openfoodfacts.org/api/v2'),
+  SPOONACULAR_API_KEY: z.string().optional(),
+  EXPIRY_ALERT_THRESHOLD_DAYS: z.coerce.number().int().default(7),
+
+  // ── CORS ──────────────────────────────────────────────────────────────────
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  console.error('❌ Variables d\'environnement invalides:');
+  console.error(parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+export const env = parsed.data;
+export type Env = typeof env;

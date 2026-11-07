@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- ── Viewport ───────────────────────────────────────────────────────────
+         viewport-fit=cover : utilise le safe-area iPhone (encoche / Dynamic Island)
+         user-scalable=no   : bloque le zoom accidentel pendant l'utilisation du scanner
+    ──────────────────────────────────────────────────────────────────────── -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+
+    <title>ColocOS — Digital Kitchen Twin</title>
+    <meta name="description" content="Gestionnaire de colocation avec Digital Twin 3D, scanner de produits et suivi des finances." />
+    <meta name="keywords" content="colocation, frigo, scanner, inventaire, finances, PWA" />
+    <meta name="author" content="ColocOS" />
+
+    <!-- ── PWA — Installabilité ───────────────────────────────────────────── -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme color : correspond à surface DEFAULT (#0a0b0d) -->
+    <meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0a0b0d" />
+
+    <!-- Standalone mode (masque la barre d'adresse une fois installée) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- ── Apple iOS / iPadOS ────────────────────────────────────────────────
+         apple-mobile-web-app-capable → mode plein écran sur iOS
+         apple-mobile-web-app-status-bar-style → barre de statut transparente
+    ──────────────────────────────────────────────────────────────────────── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ColocOS" />
+
+    <!-- Apple touch icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png" />
+
+    <!-- ── Favicon classique ─────────────────────────────────────────────── -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72.png" />
+
+    <!-- ── Microsoft Tiles (Edge / Windows) ─────────────────────────────── -->
+    <meta name="msapplication-TileColor" content="#0a0b0d" />
+    <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
+
+    <!-- ── Open Graph (partage social) ──────────────────────────────────── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ColocOS — Digital Kitchen Twin" />
+    <meta property="og:description" content="Gérez votre colocation avec un Digital Twin 3D de votre frigo." />
+    <meta property="og:image" content="/icons/icon-512.png" />
+
+    <!-- ── Fonts ─────────────────────────────────────────────────────────── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ── Splash screen color (évite le flash blanc) ────────────────────── -->
+    <style>
+      html, body { background: #0a0b0d; margin: 0; padding: 0; }
+      /* Safe area padding pour les iPhones avec encoche */
+      #root {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+        height: 100dvh; /* dynamic viewport height — corrige les navigateurs mobiles */
+      }
+    </style>
+  </head>
+
+  <body class="bg-surface text-text-primary antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

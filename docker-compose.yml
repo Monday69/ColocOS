@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────────────────────
+  # PostgreSQL — Base de données principale
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: colocos_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-colocos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-colocos_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-colocos_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./apps/backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-colocos} -d ${POSTGRES_DB:-colocos_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - colocos_network
+
+  # ─────────────────────────────────────────
+  # pgAdmin — Interface d'administration BDD
+  # ─────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: colocos_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@colocos.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - colocos_network
+    profiles:
+      - tools # Démarrer avec: docker compose --profile tools up
+
+  # ─────────────────────────────────────────
+  # Redis — Cache sessions + jobs asynchrones
+  # (OFF cache overflow, recipe job queue)
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: colocos_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - colocos_network
+
+# ─────────────────────────────────────────
+# Volumes persistants
+# ─────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ─────────────────────────────────────────
+# Réseau interne isolé
+# ─────────────────────────────────────────
+networks:
+  colocos_network:
+    driver: bridge
+    name: colocos_network

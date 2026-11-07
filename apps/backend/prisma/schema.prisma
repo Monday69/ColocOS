@@ -1,0 +1,285 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ColocOS — Prisma Schema
+// ERD validé + extensions shopping_list + activity_log
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum StorageType {
+  fridge
+  freezer
+  pantry
+  cabinet
+}
+
+enum Unit {
+  g
+  kg
+  ml
+  L
+  unit
+}
+
+enum ExpenseCategory {
+  groceries
+  utilities
+  rent
+  other
+}
+
+enum ActivityAction {
+  ITEM_ADDED
+  ITEM_REMOVED
+  ITEM_UPDATED
+  ITEM_MOVED
+  EXPENSE_CREATED
+  EXPENSE_SETTLED
+  RECIPE_COOKED
+  SHOPPING_ITEM_ADDED
+  SHOPPING_ITEM_CHECKED
+  USER_JOINED
+}
+
+enum ShoppingItemStatus {
+  pending
+  checked
+  purchased
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(100)
+  email      String   @unique @db.VarChar(255)
+  password   String   // bcrypt hash
+  avatarUrl  String?  @map("avatar_url")
+  colorHex   String   @default("#6366F1") @map("color_hex") @db.Char(7)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  badgeId      String?  @unique @map("badge_id") @db.VarChar(100) 
+
+  // Relations
+  ownedItems       Item[]          @relation("ItemOwner")
+  expensesPaid     Expense[]       @relation("ExpensePayer")
+  expenseSplits    ExpenseSplit[]
+  transactionsFrom Transaction[]   @relation("TransactionFrom")
+  transactionsTo   Transaction[]   @relation("TransactionTo")
+  shoppingItems    ShoppingItem[]  @relation("ShoppingItemAdder")
+  activityLogs     ActivityLog[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────
+// DIGITAL TWIN — STORAGE ZONES
+// ─────────────────────────────────────────
+
+model StorageZone {
+  id              String      @id @default(uuid()) @db.Uuid
+  meshId          String      @unique @map("mesh_id") @db.VarChar(100)
+  label           String      @db.VarChar(100)
+  type            StorageType
+  capacityLiters  Decimal?    @map("capacity_liters") @db.Decimal(6, 2)
+
+  // Coordonnées 3D du centroïde du mesh (pour tooltips, raycast assist)
+  positionX       Float?      @map("position_x")
+  positionY       Float?      @map("position_y")
+  positionZ       Float?      @map("position_z")
+
+  // Hiérarchie : une porte contient des étagères
+  parentZoneId    String?     @map("parent_zone_id") @db.Uuid
+  parentZone      StorageZone?  @relation("ZoneHierarchy", fields: [parentZoneId], references: [id])
+  childZones      StorageZone[] @relation("ZoneHierarchy")
+
+  // Relations
+  items           Item[]
+
+  @@map("storage_zones")
+}
+
+// ─────────────────────────────────────────
+// SMART INVENTORY — ITEMS
+// ─────────────────────────────────────────
+
+model Item {
+  id            String      @id @default(uuid()) @db.Uuid
+  barcode       String?     @db.VarChar(50)
+  name          String      @db.VarChar(255)
+  brand         String?     @db.VarChar(100)
+  quantity      Decimal     @db.Decimal(8, 2)
+  unit          Unit        @default(unit)
+  expiryDate    DateTime?   @map("expiry_date") @db.Date
+  imageUrl      String?     @map("image_url")
+  nutriscore    String?     @db.Char(1) // A, B, C, D, E
+  isShared      Boolean     @default(true) @map("is_shared")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Foreign keys
+  storageZoneId String      @map("storage_zone_id") @db.Uuid
+  storageZone   StorageZone @relation(fields: [storageZoneId], references: [id])
+
+  ownerId       String?     @map("owner_id") @db.Uuid
+  owner         User?       @relation("ItemOwner", fields: [ownerId], references: [id])
+
+  @@index([barcode])
+  @@index([expiryDate])
+  @@index([storageZoneId])
+  @@map("items")
+}
+
+// ─────────────────────────────────────────
+// CACHE OPENFOODFACTS
+// ─────────────────────────────────────────
+
+model OffCache {
+  barcode   String   @id @db.VarChar(50)
+  data      Json     // Payload complet OFF (JSONB)
+  fetchedAt DateTime @default(now()) @map("fetched_at") @db.Timestamptz
+
+  @@map("off_cache")
+}
+
+// ─────────────────────────────────────────
+// RECIPE ENGINE — CACHE MARMITON
+// ─────────────────────────────────────────
+
+model Recipe {
+  id          String   @id @default(uuid()) @db.Uuid
+  sourceUrl   String   @unique @map("source_url")
+  title       String   @db.VarChar(255)
+  imageUrl    String?  @map("image_url")
+  ingredients Json     // [{ name: string, quantity: number, unit: string }]
+  steps       Json     // [{ order: number, text: string }]
+  prepTimeMin Int?     @map("prep_time_min")
+  scrapedAt   DateTime @default(now()) @map("scraped_at") @db.Timestamptz
+
+  @@map("recipes")
+}
+
+// ─────────────────────────────────────────
+// FINANCE — TRICOUNT-LIKE
+// ─────────────────────────────────────────
+
+model Expense {
+  id          String          @id @default(uuid()) @db.Uuid
+  description String          @db.VarChar(255)
+  amount      Decimal         @db.Decimal(10, 2)
+  category    ExpenseCategory @default(other)
+  receiptUrl  String?         @map("receipt_url")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  // Qui a payé
+  paidById    String          @map("paid_by") @db.Uuid
+  paidBy      User            @relation("ExpensePayer", fields: [paidById], references: [id])
+
+  // Répartition
+  splits      ExpenseSplit[]
+
+  @@map("expenses")
+}
+
+model ExpenseSplit {
+  id          String   @id @default(uuid()) @db.Uuid
+  shareAmount Decimal  @map("share_amount") @db.Decimal(10, 2)
+  isSettled   Boolean  @default(false) @map("is_settled")
+
+  expenseId   String   @map("expense_id") @db.Uuid
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+  @@map("expense_splits")
+}
+
+model Transaction {
+  id           String   @id @default(uuid()) @db.Uuid
+  amount       Decimal  @db.Decimal(10, 2)
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  fromUserId   String   @map("from_user_id") @db.Uuid
+  fromUser     User     @relation("TransactionFrom", fields: [fromUserId], references: [id])
+
+  toUserId     String   @map("to_user_id") @db.Uuid
+  toUser       User     @relation("TransactionTo", fields: [toUserId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("transactions")
+}
+
+// ─────────────────────────────────────────
+// SHOPPING LIST
+// ─────────────────────────────────────────
+
+model ShoppingList {
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String         @default("Liste de courses") @db.VarChar(100)
+  isArchived  Boolean        @default(false) @map("is_archived")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  items       ShoppingItem[]
+
+  @@map("shopping_lists")
+}
+
+model ShoppingItem {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String             @db.VarChar(255)
+  quantity       Decimal            @default(1) @db.Decimal(8, 2)
+  unit           Unit               @default(unit)
+  barcode        String?            @db.VarChar(50)
+  status         ShoppingItemStatus @default(pending)
+  note           String?            @db.VarChar(255)
+  // Suggestion automatique si stock < seuil
+  isAutoSuggested Boolean           @default(false) @map("is_auto_suggested")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  shoppingListId String             @map("shopping_list_id") @db.Uuid
+  shoppingList   ShoppingList       @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+
+  addedById      String?            @map("added_by_id") @db.Uuid
+  addedBy        User?              @relation("ShoppingItemAdder", fields: [addedById], references: [id])
+
+  @@map("shopping_items")
+}
+
+// ─────────────────────────────────────────
+// ACTIVITY LOG — Audit trail complet
+// ─────────────────────────────────────────
+
+model ActivityLog {
+  id         String         @id @default(uuid()) @db.Uuid
+  action     ActivityAction
+  // Payload flexible : { itemId, zoneName, amount, ... }
+  meta       Json?
+  // IP + user agent pour audit
+  ipAddress  String?        @map("ip_address") @db.VarChar(45)
+  userAgent  String?        @map("user_agent")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  userId     String?        @map("user_id") @db.Uuid
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
