@@ -256,6 +256,43 @@ export interface ProductLookup {
 
 // ── Recipes ───────────────────────────────────────────────────────────────────
 
+export type MealSlot = 'LUNCH' | 'DINNER';
+
+export interface MealPlanEntry {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  slot: MealSlot;
+  recipeId: string;
+  recipeName: string;
+  cookId: string | null;
+  cook: {
+    id: string;
+    name: string;
+    colorHex: string;
+    avatarUrl: string | null;
+  } | null;
+}
+
+export interface MealPlanUpsertPayload {
+  date: string;
+  slot: MealSlot;
+  recipeId: string;
+  recipeName: string;
+  cookId?: string | null;
+}
+
+/** Filtres du hub Recettes (transmis en query string). */
+export interface RecipeQuery {
+  search?: string;
+  maxTime?: number;
+  minProtein?: number;
+  onlyAvailable?: boolean;
+  onlyAlmost?: boolean;
+  onlyFavorites?: boolean;
+  limit?: number;
+}
+
 export interface RecipeSuggestion {
   id: string;
   title: string;
@@ -275,6 +312,11 @@ export interface RecipeSuggestion {
   readyInMinutes?: number;
   /** Protéines estimées par portion (g) — filtre « Riche en protéines » */
   proteinGrams?: number | null;
+  /** Sprint 4 — hub Recettes */
+  isFavorite?: boolean;
+  isFullyAvailable?: boolean;
+  isAlmostAvailable?: boolean;
+  missingIngredientCount?: number;
 }
 
 // ── Nutrition : profil & cibles ───────────────────────────────────────────────

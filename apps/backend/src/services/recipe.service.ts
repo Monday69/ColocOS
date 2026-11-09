@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma';
+import { AppError } from '../middlewares/errorHandler';
 import { logger } from '../config/logger';
 import { inventoryService } from './inventory.service';
 import { normalizeStockToIngredients, type NormalizedIngredient } from '../utils/ingredientNormalizer';
@@ -74,6 +75,26 @@ export interface RecipeSuggestionExtended extends RecipeSuggestion {
   readyInMinutes?: number;
   /** Protéines estimées par portion (g), null si inconnues (moteur Spoonacular) */
   proteinGrams?: number | null;
+  /**
+   * Sprint 4 — enrichissements du hub Recettes.
+   * Optionnels au niveau des builders (avant la couche utilisateur), toujours
+   * renseignés par `applyUserLayer` dans la réponse HTTP.
+   */
+  isFavorite?: boolean;
+  isFullyAvailable?: boolean;
+  isAlmostAvailable?: boolean;
+  missingIngredientCount?: number;
+}
+
+/** Filtres avancés du hub Recettes. */
+export interface RecipeFilters {
+  search?: string;
+  maxTime?: number;
+  minProtein?: number;
+  onlyAvailable?: boolean;
+  onlyAlmost?: boolean;
+  onlyFavorites?: boolean;
+  limit?: number;
 }
 
 export type RecipeEngine = 'spoonacular' | 'local';
@@ -249,6 +270,10 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
 // ── Matching souple des ingrédients ───────────────────────────────────────────
 
 /** Minuscules, sans accents, sans ponctuation, pluriels neutralisés. */
+function stripDiacritics(input: string): string {
+  return input.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function normalizeLabel(input: string): string {
   return input
     .normalize('NFD')
@@ -307,7 +332,124 @@ export class RecipeService {
    * Spoonacular (ou en cas d'échec réseau/quota), le catalogue local prend le
    * relais avec le même format de réponse.
    */
-  async getSuggestedRecipes(): Promise<SuggestRecipesResult> {
+  /**
+   * Suggestions enrichies pour le hub Recettes (Sprint 4) :
+   * favoris du colocataire connecté, faisabilité et filtres avancés.
+   */
+  async getSuggestedRecipes(
+    options: { userId?: string; filters?: RecipeFilters } = {},
+  ): Promise<SuggestRecipesResult> {
+    const base = await this.computeSuggestions();
+    return this.applyUserLayer(base, options.userId, options.filters);
+  }
+
+  /** Identifiants des recettes favorites d'un utilisateur. */
+  async getFavoriteRecipeIds(userId: string): Promise<Set<string>> {
+    const rows = await prisma.favoriteRecipe.findMany({
+      where: { userId },
+      select: { recipeId: true },
+    });
+    return new Set(rows.map((row) => row.recipeId));
+  }
+
+  /** Ajoute ou retire une recette des favoris (idempotent). */
+  async toggleFavorite(userId: string, recipeId: string): Promise<{ isFavorite: boolean }> {
+    const trimmed = recipeId.trim();
+    if (!trimmed) throw new AppError(400, 'Identifiant de recette requis.');
+
+    const existing = await prisma.favoriteRecipe.findUnique({
+      where: { userId_recipeId: { userId, recipeId: trimmed } },
+    });
+
+    if (existing) {
+      await prisma.favoriteRecipe.delete({ where: { id: existing.id } });
+      return { isFavorite: false };
+    }
+
+    await prisma.favoriteRecipe.create({ data: { userId, recipeId: trimmed } });
+    return { isFavorite: true };
+  }
+
+  /**
+   * Couche « utilisateur » : favoris, faisabilité, filtres et tri intelligent
+   * (100 % réalisable → à 1 ingrédient près → le reste).
+   */
+  private async applyUserLayer(
+    result: SuggestRecipesResult,
+    userId?: string,
+    filters?: RecipeFilters,
+  ): Promise<SuggestRecipesResult> {
+    const favoriteIds = userId ? await this.getFavoriteRecipeIds(userId) : new Set<string>();
+    // Recherche insensible à la casse ET aux accents (« pates » trouve « Pâtes »)
+    const search = filters?.search ? stripDiacritics(filters.search.trim().toLowerCase()) : undefined;
+
+    let suggestions: RecipeSuggestionExtended[] = result.suggestions.map((suggestion) => {
+      const missing = suggestion.missingIngredients.length;
+      return {
+        ...suggestion,
+        isFavorite: favoriteIds.has(suggestion.id),
+        isFullyAvailable: missing === 0,
+        isAlmostAvailable: missing === 1,
+        missingIngredientCount: missing,
+      };
+    });
+
+    if (search) {
+      suggestions = suggestions.filter((suggestion) => {
+        if (stripDiacritics(suggestion.title.toLowerCase()).includes(search)) return true;
+        const inMissing = suggestion.missingIngredients.some((ingredient) =>
+          stripDiacritics(ingredient.toLowerCase()).includes(search),
+        );
+        const inUsed = suggestion.usedIngredients.some((ingredient) =>
+          stripDiacritics(ingredient.toLowerCase()).includes(search),
+        );
+        return inMissing || inUsed;
+      });
+    }
+
+    if (filters?.maxTime !== undefined) {
+      const maxTime = filters.maxTime;
+      suggestions = suggestions.filter(
+        (suggestion) => (suggestion.readyInMinutes ?? Number.POSITIVE_INFINITY) <= maxTime,
+      );
+    }
+
+    if (filters?.minProtein !== undefined) {
+      const minProtein = filters.minProtein;
+      suggestions = suggestions.filter(
+        (suggestion) => (suggestion.proteinGrams ?? 0) >= minProtein,
+      );
+    }
+
+    if (filters?.onlyAvailable) {
+      suggestions = suggestions.filter((suggestion) => suggestion.isFullyAvailable);
+    }
+
+    if (filters?.onlyAlmost) {
+      suggestions = suggestions.filter((suggestion) => suggestion.isAlmostAvailable);
+    }
+
+    if (filters?.onlyFavorites) {
+      suggestions = suggestions.filter((suggestion) => suggestion.isFavorite);
+    }
+
+    // Tri : faisables → à 1 ingrédient près → autres, puis score de match
+    suggestions.sort((a, b) => {
+      const rank = (value: RecipeSuggestionExtended) =>
+        value.isFullyAvailable ? 0 : value.isAlmostAvailable ? 1 : 2;
+      const byRank = rank(a) - rank(b);
+      if (byRank !== 0) return byRank;
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      return (b.missingIngredientCount ?? 0) - (a.missingIngredientCount ?? 0);
+    });
+
+    return {
+      ...result,
+      suggestions: suggestions.slice(0, filters?.limit ?? MAX_RECIPES_TO_RETURN),
+    };
+  }
+
+  private async computeSuggestions(): Promise<SuggestRecipesResult> {
     const stock = await this.getStockWithMeshIds();
     const stockItems = await inventoryService.getStockIngredients();
     const normalized = normalizeStockToIngredients(stockItems);
@@ -609,8 +751,8 @@ export class RecipeService {
       .sort((a, b) => {
         if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
         return a.missingIngredients.length - b.missingIngredients.length;
-      })
-      .slice(0, MAX_RECIPES_TO_RETURN);
+      });
+    // Le découpage final se fait après filtrage (applyUserLayer)
 
     const readyCount = suggestions.filter((s) => s.missingIngredients.length === 0).length;
     logger.debug(

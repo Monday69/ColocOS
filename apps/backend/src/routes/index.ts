@@ -10,6 +10,7 @@ import shoppingRouter from './shopping';
 import notificationsRouter from './notifications';
 import itemsRouter from './items';
 import usersRouter from './users';
+import mealPlanRouter from './mealPlan';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use('/auth',      authRouter);
 router.use('/fridge',    fridgeRouter);
 router.use('/inventory', inventoryRouter);
 router.use('/recipes',   recipesRouter);
+router.use('/meal-plan', mealPlanRouter);
 router.use('/finance',   financeRouter);   // ✅ Sprint 5
 router.use('/products',  productsRouter);  // Lookup OFF pour le formulaire d'ajout
 router.use('/shopping',  shoppingRouter);  // Liste de courses (lazy-create si absente)

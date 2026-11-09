@@ -1,16 +1,29 @@
-import { useState, useEffect, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChefHat, Clock, Star, ExternalLink,
-  AlertCircle, Sparkles, CheckCircle2,
-  AlertTriangle, RefreshCw, Plus, Loader2, Check,
+  ChefHat,
+  Clock,
+  ExternalLink,
+  AlertCircle,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Plus,
+  Loader2,
+  Check,
+  Heart,
+  Search,
+  CalendarDays,
+  X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '@/api/client';
-import { useRecipesStore, useBridge, useShoppingStore } from '@/store';
+import { MealPlannerModal, quickSlotOptions } from '@/components/ui/MealPlannerModal';
+import { useRecipesStore, useBridge, useShoppingStore, useStore } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
-import { hapticSuccess } from '@/lib/haptics';
-import type { RecipeSuggestion } from '@/types';
+import { hapticSuccess, hapticTap } from '@/lib/haptics';
+import type { RecipeSuggestion , RecipeQuery} from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Recipe Module
@@ -81,6 +94,7 @@ function RecipeCard({
   isPinned,
   onToggleFavorite,
   onTogglePin,
+  onPlanify,
 }: {
   recipe: RecipeSuggestion;
   index: number;
@@ -88,6 +102,7 @@ function RecipeCard({
   isPinned: boolean;
   onToggleFavorite: (recipe: RecipeSuggestion) => void;
   onTogglePin: (recipe: RecipeSuggestion) => void;
+  onPlanify: (recipe: RecipeSuggestion) => void;
 }) {
   const { setHighlightedMeshIds } = useBridge();
   const [imgError, setImgError] = useState(false);
@@ -194,11 +209,11 @@ function RecipeCard({
             'absolute top-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center',
             'backdrop-blur-sm transition-all duration-200',
             isFavorite
-              ? 'bg-amber-500/25 border border-amber-500/40 text-amber-400'
-              : 'bg-black/40 border border-white/10 text-white/50 hover:text-amber-400 hover:border-amber-400/40',
+              ? 'bg-rose-500/25 border border-rose-400/50 text-rose-300'
+              : 'bg-black/40 border border-white/10 text-white/50 hover:text-rose-300 hover:border-rose-400/40',
           )}
         >
-          {isFavorite ? <Star size={12} fill="currentColor" /> : <Star size={12} />}
+          {isFavorite ? <Heart size={12} fill="currentColor" /> : <Heart size={12} />}
         </button>
 
         {/* Prep time badge */}
@@ -297,8 +312,8 @@ function RecipeCard({
                 {batchState === 'loading'
                   ? 'Ajout…'
                   : batchState === 'done'
-                    ? 'Ajoutés aux courses ✓'
-                    : `Ajouter les ${recipe.missingIngredients.length} manquants aux courses`}
+                    ? 'Ajoutés ✓'
+                    : `+ ${recipe.missingIngredients.length} aux courses`}
               </span>
             </button>
           </div>
@@ -310,6 +325,22 @@ function RecipeCard({
             <span className="font-mono text-2xs text-health-ok">Tous les ingrédients dispo</span>
           </div>
         )}
+
+        {/* Planification rapide (Sprint 4) */}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            hapticTap();
+            onPlanify(recipe);
+          }}
+          className="flex items-center justify-center gap-1.5 h-7 rounded-lg border border-white/10
+                     bg-white/[0.03] text-slate-300 font-sans text-[9px]
+                     hover:border-cyan-400/40 hover:text-cyan-300 tap transition-colors"
+        >
+          <CalendarDays size={9} />
+          Planifier
+        </button>
 
         {/* Source link */}
         <a
@@ -338,34 +369,176 @@ function RecipeCard({
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
 
-type FilterMode = 'all' | 'ready' | 'quick' | 'protein';
+// ── Hub Recettes : barre de recherche & chips ─────────────────────────────────
 
+type ChipId = 'available' | 'almost' | 'favorites' | 'quick' | 'protein';
+
+const QUICK_MAX_MIN = 25;
 const PROTEIN_THRESHOLD_G = 25;
 
-function FilterTabs({ active, onChange }: { active: FilterMode; onChange: (f: FilterMode) => void }) {
-  const tabs: { id: FilterMode; label: string }[] = [
-    { id: 'all',   label: 'TOUT' },
-    { id: 'ready', label: 'PRÊT' },
-    { id: 'quick', label: '< 30 MIN' },
-    { id: 'protein', label: '⚡ PROTÉINES' },
-  ];
+const CHIPS: Array<{ id: ChipId; label: string; color: string; activeClass: string }> = [
+  { id: 'available', label: '⚡ 100% Réalisable', color: '#00e676', activeClass: 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300' },
+  { id: 'almost', label: '🎯 À 1 ingrédient près', color: '#22d3ee', activeClass: 'border-cyan-400/50 bg-cyan-400/15 text-cyan-300' },
+  { id: 'favorites', label: '❤️ Favoris', color: '#fb7185', activeClass: 'border-rose-400/50 bg-rose-400/15 text-rose-300' },
+  { id: 'quick', label: `⏱️ < ${QUICK_MAX_MIN} min`, color: '#f59e0b', activeClass: 'border-amber-400/50 bg-amber-400/15 text-amber-300' },
+  { id: 'protein', label: `💪 Protéines (>${PROTEIN_THRESHOLD_G} g)`, color: '#a78bfa', activeClass: 'border-violet-400/50 bg-violet-400/15 text-violet-300' },
+];
+
+function HubToolbar({
+  search,
+  onSearch,
+  chips,
+  onToggleChip,
+  onOpenPlanner,
+  onRefresh,
+  isRefreshing,
+}: {
+  search: string;
+  onSearch: (value: string) => void;
+  chips: Set<ChipId>;
+  onToggleChip: (id: ChipId) => void;
+  onOpenPlanner: () => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+}) {
+  return (
+    <div className="space-y-2 flex-shrink-0">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
+          <Search
+            size={13}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+          />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder="Rechercher une recette ou un ingrédient…"
+            aria-label="Rechercher une recette"
+            className="w-full h-10 bg-white/5 border border-white/10 rounded-2xl pl-9 pr-8 font-sans
+                       text-[12px] text-white/90 placeholder-slate-500 focus:outline-none
+                       focus:border-cyan-400/50 focus:bg-white/[0.07] transition-colors"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearch('')}
+              aria-label="Effacer la recherche"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white tap"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Rafraîchir les recettes"
+          className="w-10 h-10 rounded-2xl border border-white/10 flex items-center justify-center
+                     text-text-tertiary hover:text-white hover:border-white/25 tap disabled:opacity-40"
+        >
+          <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenPlanner}
+          className="h-10 px-3 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300
+                     flex items-center gap-1.5 font-sans text-[10px] tracking-wider uppercase
+                     tap hover:bg-cyan-400/20 transition-colors flex-shrink-0"
+        >
+          <CalendarDays size={12} />
+          Semainier
+        </button>
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+        {CHIPS.map((chip) => {
+          const active = chips.has(chip.id);
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => onToggleChip(chip.id)}
+              aria-pressed={active}
+              className={`px-2.5 h-7 rounded-full border font-sans text-[10px] whitespace-nowrap
+                          tap transition-colors flex-shrink-0 ${
+                            active
+                              ? chip.activeClass
+                              : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/25'
+                          }`}
+            >
+              {chip.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Bandeau « À 1 ingrédient près » ───────────────────────────────────────────
+
+function AlmostSection({
+  recipes,
+  onAddMissing,
+}: {
+  recipes: RecipeSuggestion[];
+  onAddMissing: (recipe: RecipeSuggestion) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  if (recipes.length === 0) return null;
 
   return (
-    <div className="flex gap-1 p-1 rounded-xl bg-surface-3/50 border border-surface-border/40 flex-shrink-0">
-      {tabs.map(tab => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={clsx(
-            'flex-1 py-1.5 rounded-lg font-display text-2xs tracking-widest transition-all duration-150',
-            active === tab.id
-              ? 'bg-accent/15 border border-accent/30 text-accent'
-              : 'text-text-tertiary hover:text-text-secondary',
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className="flex-shrink-0">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="label-section">🎯 À 1 INGRÉDIENT PRÈS</span>
+        <span className="font-mono text-2xs text-cyan-300">{recipes.length}</span>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+        {recipes.slice(0, 8).map((recipe) => {
+          const missing = recipe.missingIngredients[0];
+          return (
+            <div
+              key={recipe.id}
+              className="w-[196px] flex-shrink-0 rounded-xl border border-cyan-400/25 bg-cyan-400/[0.05] p-2 space-y-1"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="flex-1 min-w-0 truncate font-sans text-[11px] text-white/90">
+                  {recipe.title}
+                </span>
+                <span className="font-mono text-[8px] text-cyan-300 tabular-nums flex-shrink-0">
+                  {recipe.prepTimeMin ?? '—'} min
+                </span>
+              </div>
+              <div className="font-mono text-[9px] text-slate-400">
+                Il ne manque que : <span className="text-cyan-300">{missing}</span>
+              </div>
+              <button
+                type="button"
+                disabled={busy === recipe.id}
+                onClick={async () => {
+                  setBusy(recipe.id);
+                  try {
+                    await onAddMissing(recipe);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+                className="w-full h-6 rounded-lg border border-cyan-400/30 text-cyan-300 font-sans
+                           text-[9px] flex items-center justify-center gap-1 tap
+                           hover:bg-cyan-400/15 disabled:opacity-50 transition-colors"
+              >
+                {busy === recipe.id ? <Loader2 size={9} className="animate-spin" /> : <Plus size={9} />}
+                Ajouter aux courses
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -375,12 +548,17 @@ function FilterTabs({ active, onChange }: { active: FilterMode; onChange: (f: Fi
 export function RecipeModule() {
   const { recipeSuggestions, isRecipesLoading, recipesError,
           setRecipeSuggestions, setRecipesLoading, setRecipesError } = useRecipesStore();
-  const [filter, setFilter] = useState<FilterMode>('all');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [chips, setChips] = useState<Set<ChipId>>(new Set());
   const [toggling, setToggling] = useState<string | null>(null);
-  // Recette « épinglée » : sa mise en valeur 3D reste active (utile sur mobile)
   const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [planTarget, setPlanTarget] = useState<RecipeSuggestion | null>(null);
   const { setHighlightedMeshIds } = useBridge();
+  const setShoppingList = useShoppingStore((s) => s.setShoppingList);
+  const user = useStore((s) => s.user);
+
+  const chipsKey = useMemo(() => Array.from(chips).sort().join(','), [chips]);
 
   const handleTogglePin = useCallback((recipe: RecipeSuggestion) => {
     setPinnedId((current) => {
@@ -390,110 +568,146 @@ export function RecipeModule() {
     });
   }, [setHighlightedMeshIds]);
 
-  // Fetch suggestions on mount
+  /** Filtrage serveur : recherche, chips, faisabilité, favoris. */
   const fetchRecipes = useCallback(async () => {
     setRecipesLoading(true);
     try {
-      const recipes = await api.getRecipeSuggestions(12);
+      const query: RecipeQuery = { limit: 50 };
+      if (search.trim()) query.search = search.trim();
+      if (chips.has('available')) query.onlyAvailable = true;
+      if (chips.has('almost')) query.onlyAlmost = true;
+      if (chips.has('favorites')) query.onlyFavorites = true;
+      if (chips.has('quick')) query.maxTime = QUICK_MAX_MIN;
+      if (chips.has('protein')) query.minProtein = PROTEIN_THRESHOLD_G;
+
+      const recipes = await api.getRecipeSuggestions(query);
       setRecipeSuggestions(recipes);
     } catch (err) {
       setRecipesError(err instanceof Error ? err.message : 'Erreur');
     }
-  }, [setRecipeSuggestions, setRecipesLoading, setRecipesError]);
+  }, [search, chips, setRecipeSuggestions, setRecipesLoading, setRecipesError]);
 
+  // Recherche instantanée (debounce léger pour ne pas marteler l'API)
   useEffect(() => {
-    if (recipeSuggestions.length === 0) fetchRecipes();
-  }, []);
+    const timer = setTimeout(() => { void fetchRecipes(); }, 250);
+    return () => clearTimeout(timer);
+  }, [fetchRecipes, chipsKey]);
 
-  // Filter logic
-  const filteredRecipes = recipeSuggestions.filter(r => {
-    if (filter === 'ready')  return r.missingIngredients.length === 0;
-    if (filter === 'quick')  return r.prepTimeMin !== null && r.prepTimeMin <= 30;
-    // « Riche en protéines » : estimation par portion fournie par le catalogue local
-    if (filter === 'protein') return (r.proteinGrams ?? 0) >= PROTEIN_THRESHOLD_G;
-    return true;
-  });
+  const handleToggleChip = (id: ChipId) => {
+    hapticTap();
+    setChips((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  // Favorite toggle
   const handleToggleFavorite = async (recipe: RecipeSuggestion) => {
     if (toggling === recipe.id) return;
     setToggling(recipe.id);
 
-    const wasFavorite = favorites.has(recipe.id);
-    // Optimistic
-    setFavorites(prev => {
-      const next = new Set(prev);
-      if (wasFavorite) next.delete(recipe.id);
-      else next.add(recipe.id);
-      return next;
-    });
+    const wasFavorite = !!recipe.isFavorite;
+    // Optimiste : bascule immédiate côté client
+    setRecipeSuggestions(
+      recipeSuggestions.map((entry) =>
+        entry.id === recipe.id ? { ...entry, isFavorite: !wasFavorite } : entry,
+      ),
+    );
 
     try {
       await api.toggleFavoriteRecipe(recipe.id);
+      hapticSuccess();
       if (wasFavorite) toasts.recipeUnfavorited(recipe.title);
       else             toasts.recipeFavorited(recipe.title);
+      // Le filtre « Favoris » doit se recharger pour rester exact
+      if (chips.has('favorites')) void fetchRecipes();
     } catch {
-      // Rollback optimistic update
-      setFavorites(prev => {
-        const next = new Set(prev);
-        if (wasFavorite) next.add(recipe.id);
-        else next.delete(recipe.id);
-        return next;
-      });
+      setRecipeSuggestions(
+        recipeSuggestions.map((entry) =>
+          entry.id === recipe.id ? { ...entry, isFavorite: wasFavorite } : entry,
+        ),
+      );
       toasts.error('Impossible de modifier les favoris');
     } finally {
       setToggling(null);
     }
   };
 
-  const readyCount = recipeSuggestions.filter(r => r.missingIngredients.length === 0).length;
+  /** Pont Recettes → Courses (utilisé par le bandeau et les cartes). */
+  const addMissingToShopping = useCallback(async (recipe: RecipeSuggestion) => {
+    if (recipe.missingIngredients.length === 0) return;
+    try {
+      const list = await api.addMissingIngredientsToShopping(
+        recipe.missingIngredients.map((name) => ({ name })),
+      );
+      setShoppingList(list);
+      hapticSuccess();
+      toasts.shoppingBatchAdd(recipe.missingIngredients.length, recipe.title);
+    } catch (err) {
+      toasts.error(
+        err instanceof Error ? err.message : "Impossible d'ajouter les ingrédients aux courses",
+      );
+    }
+  }, [setShoppingList]);
+
+  /** Planification rapide d'une recette (Ce soir / Demain midi / Demain soir). */
+  const planify = async (option: { date: string; slot: 'LUNCH' | 'DINNER' }, recipe: RecipeSuggestion) => {
+    try {
+      await api.upsertMealPlan({
+        date: option.date,
+        slot: option.slot,
+        recipeId: recipe.id,
+        recipeName: recipe.title,
+        cookId: user?.id ?? null,
+      });
+      hapticSuccess();
+      toasts.info('Repas planifié', `${recipe.title} — ${option.slot === 'LUNCH' ? 'midi' : 'soir'}`);
+      setPlanTarget(null);
+    } catch (err) {
+      toasts.error('Planification impossible', err instanceof Error ? err.message : 'Erreur serveur');
+    }
+  };
+
+  const readyCount = recipeSuggestions.filter(r => r.isFullyAvailable ?? r.missingIngredients.length === 0).length;
+  const almostRecipes = recipeSuggestions.filter(r => r.isAlmostAvailable);
+  const favoriteCount = recipeSuggestions.filter(r => r.isFavorite).length;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden gap-3">
+    <div className="h-full flex flex-col overflow-hidden gap-2.5">
       {/* Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
-          <div className="label-section">MOTEUR DE RECETTES</div>
+          <div className="label-section">HUB RECETTES</div>
           <h2 className="font-display text-xl font-600 text-text-primary mt-0.5">
-            Suggestions <span className="text-accent font-300">du frigo</span>
+            Le <span className="text-accent font-300">frigo</span> cuisine
           </h2>
         </div>
-
         <div className="flex items-center gap-2">
-          {/* Ready count badge */}
           {readyCount > 0 && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-health-ok/10 border border-health-ok/25">
               <CheckCircle2 size={11} className="text-health-ok" />
               <span className="font-mono text-2xs text-health-ok">{readyCount} prêtes</span>
             </div>
           )}
-          {/* Refresh button */}
-          <button
-            onClick={fetchRecipes}
-            disabled={isRecipesLoading}
-            className="w-8 h-8 rounded-lg border border-surface-border/50 flex items-center justify-center
-                       text-text-tertiary hover:text-text-primary hover:border-surface-border
-                       disabled:opacity-40 transition-all"
-          >
-            <RefreshCw size={13} className={isRecipesLoading ? 'animate-spin' : ''} />
-          </button>
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <FilterTabs active={filter} onChange={setFilter} />
+      <HubToolbar
+        search={search}
+        onSearch={setSearch}
+        chips={chips}
+        onToggleChip={handleToggleChip}
+        onOpenPlanner={() => { hapticTap(); setPlannerOpen(true); }}
+        onRefresh={() => void fetchRecipes()}
+        isRefreshing={isRecipesLoading}
+      />
 
-      {/* 3D hint */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2/60 border border-surface-border/30 flex-shrink-0">
-        <Sparkles size={11} className="text-health-ok flex-shrink-0" />
-        <p className="font-mono text-2xs text-text-tertiary leading-snug">
-          Survolez une recette pour voir les ingrédients disponibles s'illuminer dans le frigo 3D.
-        </p>
-      </div>
+      {/* Suggestions « à 1 ingrédient près » */}
+      <AlmostSection recipes={almostRecipes} onAddMissing={addMissingToShopping} />
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto min-h-0 pr-0.5">
-        {/* Loading state */}
+      {/* Contenu */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 space-y-2.5">
         {isRecipesLoading && recipeSuggestions.length === 0 && (
           <div className="grid grid-cols-2 gap-2.5">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -509,15 +723,13 @@ export function RecipeModule() {
           </div>
         )}
 
-        {/* Error state */}
         {recipesError && (
-          <div className="flex items-center gap-2 p-3 rounded-lg
-                          bg-health-critical/5 border border-health-critical/25">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-health-critical/5 border border-health-critical/25">
             <AlertCircle size={14} className="text-health-critical flex-shrink-0" />
             <div className="flex-1">
               <span className="font-mono text-xs text-health-critical">{recipesError}</span>
               <button
-                onClick={fetchRecipes}
+                onClick={() => void fetchRecipes()}
                 className="block font-mono text-2xs text-accent mt-1 hover:text-accent-bright"
               >
                 Réessayer →
@@ -526,35 +738,41 @@ export function RecipeModule() {
           </div>
         )}
 
-        {/* Empty state after filter */}
-        {!isRecipesLoading && filteredRecipes.length === 0 && recipeSuggestions.length > 0 && (
+        {!isRecipesLoading && recipeSuggestions.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
             <ChefHat size={28} className="text-text-tertiary/40" />
             <div className="text-center">
               <div className="font-mono text-sm text-text-tertiary">AUCUNE RECETTE</div>
               <div className="font-body text-xs text-text-tertiary/60 mt-1">
-                {filter === 'ready' ? 'Aucune recette réalisable avec le stock actuel' : filter === 'protein' ? `Aucune recette à plus de ${PROTEIN_THRESHOLD_G} g de protéines par portion` : 'Aucune recette rapide disponible'}
+                {chips.size > 0 || search
+                  ? 'Aucun résultat pour ces filtres'
+                  : 'Aucune suggestion disponible pour le stock actuel'}
               </div>
-              <button onClick={() => setFilter('all')} className="font-mono text-2xs text-accent mt-2 hover:text-accent-bright">
-                Voir toutes les suggestions →
-              </button>
+              {(chips.size > 0 || search) && (
+                <button
+                  onClick={() => { setChips(new Set()); setSearch(''); }}
+                  className="font-mono text-2xs text-accent mt-2 hover:text-accent-bright"
+                >
+                  Réinitialiser les filtres →
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {/* Recipe grid */}
-        {filteredRecipes.length > 0 && (
+        {recipeSuggestions.length > 0 && (
           <div className="grid grid-cols-2 gap-2.5">
             <AnimatePresence mode="popLayout">
-              {filteredRecipes.map((recipe, i) => (
+              {recipeSuggestions.map((recipe, i) => (
                 <RecipeCard
                   key={recipe.id}
                   recipe={recipe}
                   index={i}
-                  isFavorite={favorites.has(recipe.id)}
+                  isFavorite={!!recipe.isFavorite}
                   isPinned={pinnedId === recipe.id}
                   onToggleFavorite={handleToggleFavorite}
                   onTogglePin={handleTogglePin}
+                  onPlanify={setPlanTarget}
                 />
               ))}
             </AnimatePresence>
@@ -566,16 +784,72 @@ export function RecipeModule() {
       {recipeSuggestions.length > 0 && (
         <div className="flex-shrink-0 pt-2 border-t border-surface-border/40 flex items-center justify-between">
           <span className="font-mono text-2xs text-text-tertiary">
-            {filteredRecipes.length} / {recipeSuggestions.length} recettes
+            {recipeSuggestions.length} recette{recipeSuggestions.length !== 1 ? 's' : ''}
+            {almostRecipes.length > 0 ? ` · ${almostRecipes.length} à 1 près` : ''}
           </span>
           <div className="flex items-center gap-1.5">
-            <Star size={10} className="text-amber-400" />
+            <Heart size={10} className="text-rose-300" />
             <span className="font-mono text-2xs text-text-tertiary">
-              {favorites.size} favori{favorites.size !== 1 ? 's' : ''}
+              {favoriteCount} favori{favoriteCount !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
       )}
+
+      {/* Semainier */}
+      <MealPlannerModal
+        open={plannerOpen}
+        onClose={() => setPlannerOpen(false)}
+        recipes={recipeSuggestions}
+      />
+
+      {/* Planification rapide d'une carte */}
+      <AnimatePresence>
+        {planTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPlanTarget(null)} />
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              className="relative w-full sm:max-w-xs m-0 sm:m-4 rounded-t-3xl sm:rounded-2xl border border-white/12
+                         bg-[#0d1014]/95 p-3 space-y-2"
+              style={{ backdropFilter: 'blur(24px)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] text-slate-400">
+                  PLANIFIER · {planTarget.title.slice(0, 28)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPlanTarget(null)}
+                  className="font-mono text-[9px] text-slate-500 hover:text-white tap"
+                >
+                  ANNULER
+                </button>
+              </div>
+              {quickSlotOptions().map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => void planify(option, planTarget)}
+                  className="w-full h-9 rounded-xl border border-white/10 bg-white/[0.04] font-sans
+                             text-[11px] text-white/85 flex items-center justify-between px-3
+                             tap hover:border-cyan-400/40 hover:text-cyan-300 transition-colors"
+                >
+                  <span>{option.label}</span>
+                  <span className="font-mono text-[9px] text-slate-500">{option.date}</span>
+                </button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

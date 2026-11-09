@@ -14,6 +14,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/suggest', recipeController.suggest.bind(recipeController));
+router.post('/:recipeId/favorite', recipeController.toggleFavorite.bind(recipeController));
 router.get('/:id', recipeController.getById.bind(recipeController));
 
 export default router;

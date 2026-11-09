@@ -94,6 +94,8 @@ model User {
   shoppingItems    ShoppingItem[]  @relation("ShoppingItemAdder")
   activityLogs     ActivityLog[]
   pushSubscriptions PushSubscription[]
+  favoriteRecipes  FavoriteRecipe[]
+  cookedMeals      MealPlan[]       @relation("MealPlanCook")
 
   @@map("users")
 }
@@ -341,4 +343,41 @@ enum NutritionGoal {
   LEAN_BULK
   CUT
   HIGH_PROTEIN
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recettes : favoris par colocataire & semainier des repas
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FavoriteRecipe {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Identifiant de recette du catalogue local (`riz-saute-soja`) ou Spoonacular
+  recipeId  String   @map("recipe_id") @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@map("favorite_recipes")
+}
+
+enum MealSlot {
+  LUNCH
+  DINNER
+}
+
+model MealPlan {
+  id         String   @id @default(uuid()) @db.Uuid
+  date       DateTime @db.Date
+  slot       MealSlot
+  recipeId   String   @map("recipe_id") @db.VarChar(120)
+  recipeName String   @map("recipe_name") @db.VarChar(160)
+  cookId     String?  @map("cook_id") @db.Uuid
+  cook       User?    @relation("MealPlanCook", fields: [cookId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([date, slot])
+  @@index([date])
+  @@map("meal_plans")
 }

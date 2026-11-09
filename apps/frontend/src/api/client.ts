@@ -6,6 +6,7 @@ import type {
   UserProfile, NutritionTargets, UpdateProfilePayload,
   RoommateProfile,
   FreshCatalog, QuickAddPayload, QuickAddResult,
+  RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -194,14 +195,43 @@ class ApiClient {
     });
 
   // Recipes
-  getRecipeSuggestions = async (limit = 8): Promise<RecipeSuggestion[]> => {
+  getRecipeSuggestions = async (
+    query: RecipeQuery | number = 8,
+  ): Promise<RecipeSuggestion[]> => {
+    const params = new URLSearchParams();
+    if (typeof query === 'number') {
+      params.set('limit', String(query));
+    } else {
+      if (query.search) params.set('search', query.search);
+      if (query.maxTime !== undefined) params.set('maxTime', String(query.maxTime));
+      if (query.minProtein !== undefined) params.set('minProtein', String(query.minProtein));
+      if (query.onlyAvailable) params.set('onlyAvailable', 'true');
+      if (query.onlyAlmost) params.set('onlyAlmost', 'true');
+      if (query.onlyFavorites) params.set('onlyFavorites', 'true');
+      params.set('limit', String(query.limit ?? 50));
+    }
     const response = await this.request<{ suggestions?: RecipeSuggestion[] }>(
-      `/recipes/suggest?limit=${limit}`,
+      `/recipes/suggest?${params.toString()}`,
     );
     return response.suggestions ?? [];
   };
   toggleFavoriteRecipe = (recipeId: string) =>
     this.request<{ isFavorite: boolean }>(`/recipes/${recipeId}/favorite`, { method: 'POST' });
+
+  // ── Semainier (Sprint 4) ───────────────────────────────────────────────────
+  getMealPlan = async (start: string, end: string): Promise<MealPlanEntry[]> => {
+    const response = await this.request<{ meals?: MealPlanEntry[] }>(
+      `/meal-plan?start=${start}&end=${end}`,
+    );
+    return response.meals ?? [];
+  };
+  upsertMealPlan = (payload: MealPlanUpsertPayload) =>
+    this.request<MealPlanEntry>('/meal-plan', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  deleteMealPlan = (id: string) =>
+    this.request<{ deleted: boolean }>(`/meal-plan/${id}`, { method: 'DELETE' });
 }
 
 export const api = new ApiClient();
