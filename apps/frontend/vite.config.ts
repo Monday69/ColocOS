@@ -38,5 +38,16 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 4173,
+    // HTTP explicite : `basicSsl()` force sinon HTTPS sur la preview, or un
+    // Service Worker refuse de s'enregistrer derrière un certificat auto-signé.
+    // `http://localhost` reste un contexte sécurisé pour le push.
+    https: false,
+    // Même proxy qu'en dev.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
 });

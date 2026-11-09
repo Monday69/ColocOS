@@ -71,6 +71,13 @@ export interface ItemSummary {
   nutriscore: string | null;
   isShared: boolean;
   ownerId: string | null;
+  // ── Nutrition (pour 100 g / 100 ml) ──
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  novaGroup: number | null;
 }
 
 export interface ScannedProduct {
@@ -81,6 +88,17 @@ export interface ScannedProduct {
   nutriscore: string | null;
   quantity: string | null; // "500g", "1L", etc. (chaîne brute OFF)
   fromCache: boolean;
+  /** Données nutritionnelles Open Food Facts (pour 100 g / 100 ml) */
+  nutrition: ProductNutrition;
+}
+
+export interface ProductNutrition {
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  novaGroup: number | null;
 }
 
 // ── Finance ──────────────────────────────────────────────────────────────────

@@ -47,6 +47,12 @@ function toItemSummary(item: {
   nutriscore: string | null;
   isShared: boolean;
   ownerId: string | null;
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  novaGroup: number | null;
 }): ItemSummary {
   return {
     id: item.id,
@@ -59,6 +65,12 @@ function toItemSummary(item: {
     nutriscore: item.nutriscore,
     isShared: item.isShared,
     ownerId: item.ownerId,
+    calories: item.calories,
+    proteins: item.proteins,
+    carbohydrates: item.carbohydrates,
+    fat: item.fat,
+    fiber: item.fiber,
+    novaGroup: item.novaGroup,
   };
 }
 
@@ -93,6 +105,12 @@ export class InventoryService {
         expiryDate: data.expiryDate ?? null,
         imageUrl: data.imageUrl ?? null,
         nutriscore: data.nutriscore ?? null,
+        calories: data.calories ?? null,
+        proteins: data.proteins ?? null,
+        carbohydrates: data.carbohydrates ?? null,
+        fat: data.fat ?? null,
+        fiber: data.fiber ?? null,
+        novaGroup: data.novaGroup ?? null,
         isShared: data.isShared,
         storageZoneId: data.storageZoneId,
         ownerId: data.ownerId ?? userId ?? null,
@@ -213,6 +231,43 @@ export class InventoryService {
       wasExhausted: true,
       addedToShoppingList,
     };
+  }
+
+  /**
+   * Bascule un item en libre-service (`isShared: true`).
+   *
+   * Appelé par le bouton d'action d'une notification de péremption
+   * (`POST /api/items/:id/share`), donc aussi depuis le Service Worker :
+   * aucune ouverture de l'interface 3D n'est nécessaire.
+   */
+  async shareItem(
+    itemId: string,
+    userId?: string,
+  ): Promise<{ id: string; name: string; isShared: boolean }> {
+    const item = await prisma.item.findUnique({
+      where: { id: itemId },
+      select: { id: true, name: true, isShared: true },
+    });
+
+    if (!item) throw new AppError(404, `Item introuvable : ${itemId}`);
+
+    if (!item.isShared) {
+      await prisma.item.update({ where: { id: itemId }, data: { isShared: true } });
+
+      if (userId) {
+        await prisma.activityLog.create({
+          data: {
+            action: 'ITEM_UPDATED',
+            userId,
+            meta: { itemId, itemName: item.name, isShared: true, reason: 'shared' },
+          },
+        });
+      }
+
+      logger.debug(`[Inventory] Item mis en libre-service : ${item.name}`);
+    }
+
+    return { id: item.id, name: item.name, isShared: true };
   }
 
   /**

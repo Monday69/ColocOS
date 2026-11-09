@@ -99,6 +99,14 @@ export interface ZoneItemTwin {
   ownerName: string | null;
   /** Date de péremption ISO courte (YYYY-MM-DD), null si non renseignée */
   expiryDate: string | null;
+  /** Macros Open Food Facts (pour 100 g / 100 ml) */
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  /** Classification NOVA 1 → 4 */
+  novaGroup: number | null;
 }
 
 /** Payload complet retourné par GET /api/fridge/state */

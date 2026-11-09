@@ -100,6 +100,69 @@ function OwnerPill({ item, className }: { item: ZoneItemTwin; className?: string
   )
 }
 
+/** Couleurs NOVA (1 = brut → 4 = ultra-transformé). */
+const NOVA_COLORS: Record<number, string> = {
+  1: '#00e676',
+  2: '#a3e635',
+  3: '#f59e0b',
+  4: '#ef4444',
+}
+
+/** Pastille NOVA — rien si le groupe est inconnu. */
+function NovaBadge({ group }: { group: number | null }) {
+  if (group === null || group === undefined) return null
+  const color = NOVA_COLORS[group]
+  if (!color) return null
+
+  return (
+    <span
+      className="px-1 py-[1px] rounded text-[8px] font-mono leading-[10px] tracking-wide flex-shrink-0"
+      style={{ color, backgroundColor: `${color}1f`, border: `1px solid ${color}55` }}
+      title={`NOVA ${group} — ${
+        group === 1 ? 'non transformé' : group === 2 ? 'ingrédient culinaire' : group === 3 ? 'transformé' : 'ultra-transformé'
+      }`}
+    >
+      NOVA {group}
+    </span>
+  )
+}
+
+/**
+ * Mini-grille Liquid Glass des macros (pour 100 g / 100 ml).
+ * Rien n'est rendu tant qu'Open Food Facts n'a fourni aucune valeur.
+ */
+function MacroGrid({ item }: { item: ZoneItemTwin }) {
+  const metrics = [
+    { label: 'kcal', value: item.calories },
+    { label: 'Prot.', value: item.proteins },
+    { label: 'Gluc.', value: item.carbohydrates },
+    { label: 'Lip.', value: item.fat },
+  ]
+
+  if (!metrics.some((metric) => metric.value !== null && metric.value !== undefined)) return null
+
+  return (
+    <div className="mt-1.5">
+      <div className="grid grid-cols-4 gap-1">
+        {metrics.map((metric) => (
+          <div
+            key={metric.label}
+            className="rounded-lg bg-white/[0.04] border border-white/10 px-1 py-1 text-center"
+          >
+            <div className="font-mono text-[11px] leading-none text-white/90 tabular-nums">
+              {metric.value === null || metric.value === undefined ? '—' : Math.round(metric.value)}
+            </div>
+            <div className="text-[8px] uppercase tracking-wider text-slate-400/80 mt-[3px]">
+              {metric.label}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="text-[8px] text-slate-500 mt-1 text-right">pour 100 g</div>
+    </div>
+  )
+}
+
 /**
  * Action « Consommer » partagée par les deux présentations.
  * Le refetch de `/fridge/state` fait disparaître le mesh et referme la carte
@@ -176,6 +239,7 @@ export function ProductTooltipCard({ item, isConsuming, onConsume, onDismiss }: 
       {/* Nutriscore · propriétaire · quantité */}
       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
         <NutriscoreBadge score={item.nutriscore} />
+        <NovaBadge group={item.novaGroup} />
         <OwnerPill item={item} className="text-[10px] text-slate-300" />
         <span className="text-[10px] text-slate-400/80 ml-auto flex-shrink-0 tabular-nums">
           ×{Number(item.quantity.toFixed(2))} {item.unit}
@@ -183,6 +247,8 @@ export function ProductTooltipCard({ item, isConsuming, onConsume, onDismiss }: 
       </div>
 
       {expiry && <div className={clsx('text-[10px] mt-1 truncate tabular-nums', expiry.className)}>{expiry.text}</div>}
+
+      <MacroGrid item={item} />
 
       {/* Action rapide */}
       <button
@@ -243,6 +309,7 @@ export function ProductQuickActionCard({ item, isConsuming, onConsume, onDismiss
           )}
           <div className="flex items-center gap-2 mt-1">
             <NutriscoreBadge score={item.nutriscore} size="md" />
+            <NovaBadge group={item.novaGroup} />
             <OwnerPill item={item} className="text-[11px] text-slate-300" />
             <span className="text-[11px] text-slate-400/80 ml-auto flex-shrink-0 tabular-nums">
               ×{Number(item.quantity.toFixed(2))} {item.unit}
@@ -261,6 +328,8 @@ export function ProductQuickActionCard({ item, isConsuming, onConsume, onDismiss
           <X size={16} />
         </button>
       </div>
+
+      <MacroGrid item={item} />
 
       <button
         type="button"

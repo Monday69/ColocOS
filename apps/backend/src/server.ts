@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/prisma';
+import { startExpiryCron } from './jobs/expiryCron';
 
 const app = createApp();
 
@@ -18,10 +19,14 @@ const server = app.listen(env.PORT, () => {
   `);
 });
 
+// ── Tâche planifiée : alerte de péremption J+1 (09:00 Europe/Paris) ────────
+const expiryTask = env.NODE_ENV === 'test' ? null : startExpiryCron();
+
 // ── Graceful Shutdown ──────────────────────────────────────────────────────
 // Ferme proprement les connexions BDD avant d'arrêter le process
 const shutdown = async (signal: string) => {
   logger.info(`Signal ${signal} reçu — arrêt gracieux...`);
+  expiryTask?.stop();
 
   server.close(async () => {
     try {

@@ -22,6 +22,13 @@ router.use(authenticate);
 
 router.get('/lists/active', shoppingController.getActiveList.bind(shoppingController));
 
+// Ajout en lot sur la liste active (pont Recettes → Courses).
+// Déclarée AVANT `/lists/:listId/items` pour rester sans ambiguïté de routage.
+router.post(
+  '/lists/active/items/batch',
+  shoppingController.addBatchItemsToActiveList.bind(shoppingController),
+);
+
 router.post('/lists/:listId/items', shoppingController.addItem.bind(shoppingController));
 router.patch(
   '/lists/:listId/items/:itemId/check',

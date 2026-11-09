@@ -48,6 +48,14 @@ export const CreateItemSchema = z.object({
   isShared: z.boolean().default(true),
   storageZoneId: z.string().uuid('storageZoneId doit être un UUID valide'),
   ownerId: z.string().uuid().optional().nullable(),
+
+  // ── Nutrition (Open Food Facts, pour 100 g / 100 ml) ──────────────────────
+  calories: z.number().min(0).max(10000).optional().nullable(),
+  proteins: z.number().min(0).max(1000).optional().nullable(),
+  carbohydrates: z.number().min(0).max(1000).optional().nullable(),
+  fat: z.number().min(0).max(1000).optional().nullable(),
+  fiber: z.number().min(0).max(1000).optional().nullable(),
+  novaGroup: z.number().int().min(1).max(4).optional().nullable(),
 });
 
 export type CreateItemDTO = z.infer<typeof CreateItemSchema>;

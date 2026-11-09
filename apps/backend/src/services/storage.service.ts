@@ -210,6 +210,13 @@ function toZoneItemTwin(
     expiryDate: item.expiryDate
       ? item.expiryDate.toISOString().split('T')[0]
       : null,
+    // Macros (pour 100 g) — alimentent la fiche nutrition du packaging
+    calories: item.calories,
+    proteins: item.proteins,
+    carbohydrates: item.carbohydrates,
+    fat: item.fat,
+    fiber: item.fiber,
+    novaGroup: item.novaGroup,
   };
 }
 

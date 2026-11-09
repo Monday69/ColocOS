@@ -27,6 +27,13 @@ const envSchema = z.object({
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+
+  // ── Web Push (PWA) ────────────────────────────────────────────────────────
+  // Optionnels : sans ces clés l'API démarre normalement, le service push
+  // se contente de désactiver l'envoi (logs explicites) au lieu de planter.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:contact@colocos.local'),
 });
 
 const parsed = envSchema.safeParse(process.env);

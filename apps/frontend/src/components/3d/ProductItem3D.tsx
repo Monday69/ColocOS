@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { getZoneBounds } from '@/lib/zoneRegistry'
+import { getExpiryStatus, getExpiryStatusFromDays, EXPIRY_COLORS } from '@/lib/expiry'
 import { useUIStore } from '@/store'
 import { ProductTooltip } from './ProductTooltip'
 import type { ZoneItemTwin } from '@/types'
@@ -28,6 +29,16 @@ const ITEM_W = 0.07
 const ITEM_H = 0.14
 const ITEM_D = 0.07
 const ITEM_GAP = 0.015
+
+// ── Couleurs émissives statiques ──────────────────────────────────────────────
+// Instanciées une seule fois au chargement du module : la boucle `useFrame` ne
+// doit jamais créer de `THREE.Color` (GC sur Safari iOS = micro-saccades).
+const EMISSIVE_CRITICAL = new THREE.Color(EXPIRY_COLORS.critical)
+const EMISSIVE_WARNING = new THREE.Color(EXPIRY_COLORS.warning)
+const EMISSIVE_RECIPE = new THREE.Color('#00e676')
+const EMISSIVE_SELECTED = new THREE.Color('#22d3ee')
+const EMISSIVE_HOVER = new THREE.Color('#4fc3f7')
+const EMISSIVE_OFF = new THREE.Color('#000000')
 
 /**
  * Ombre de contact « douce » partagée par tous les packagings.
@@ -168,40 +179,104 @@ export function ProductItem3D({ item, position, zoneId }: ProductItem3DProps) {
 
   const active = hovered || isSelected
 
-  // Pont « recette → frigo » : les packagings des zones qui contiennent les
-  // ingrédients d'une recette survolée/épinglée pulsent en vert, sans écraser
-  // la sélection (priorité visuelle à la sélection cyan).
+  // ── Statut de péremption ──────────────────────────────────────────────────
+  // `daysUntilExpiry` vient du backend : même arrondi que la couleur des zones,
+  // donc jamais de packaging rouge sur une clayette verte. On ne recalcule
+  // depuis `expiryDate` que si le champ est absent.
+  const expiryStatus = useMemo(
+    () =>
+      item.daysUntilExpiry !== null && item.daysUntilExpiry !== undefined
+        ? getExpiryStatusFromDays(item.daysUntilExpiry)
+        : getExpiryStatus(item.expiryDate),
+    [item.daysUntilExpiry, item.expiryDate],
+  )
+
+  // Tableau stable : `useFrame` tourne 60×/s, il ne doit rien allouer
+  const emissiveTargets = useMemo(
+    () => (frontMaterial ? [cartonMaterial, frontMaterial] : [cartonMaterial]),
+    [cartonMaterial, frontMaterial],
+  )
+
+  // Coque d'alerte (BackSide, 1.02) : donne un liseré rouge/ambre lisible même
+  // quand l'émissivité seule reste diluée par le carton clair. Matériau
+  // possédé par l'instance, opacité pilotée par `useFrame` (zéro allocation).
+  const alertShellMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.BackSide,
+        toneMapped: false,
+      }),
+    [],
+  )
+  useEffect(() => () => alertShellMaterial.dispose(), [alertShellMaterial])
+
+  const isExpiryAlert = expiryStatus === 'CRITICAL' || expiryStatus === 'WARNING'
+
+  // Halo dynamique — priorité : sélection (cyan, géré par l'effet ci-dessous)
+  // > recette survolée/épinglée (vert) > péremption (rouge / ambre).
+  // Aucune allocation ici : couleurs statiques + matériaux pré-calculés.
   useFrame((state) => {
-    if (!isRecipeHighlighted || isSelected) return
-    const targets = [cartonMaterial, frontMaterial].filter(
-      (material): material is THREE.MeshStandardMaterial => material !== null,
-    )
-    // Pulsation sinusoïdale 0.06 → 0.30, période ~2 s
-    const intensity = 0.18 + 0.12 * Math.sin(state.clock.elapsedTime * 3)
-    for (const material of targets) {
-      material.emissive.set('#00e676')
-      material.emissiveIntensity = Math.max(0.05, intensity)
+    if (isSelected) {
+      alertShellMaterial.opacity = 0
+      return
+    }
+    const t = state.clock.elapsedTime
+    let color: THREE.Color
+    let intensity: number
+
+    if (isRecipeHighlighted) {
+      color = EMISSIVE_RECIPE
+      intensity = 0.18 + 0.12 * Math.sin(t * 3)
+      alertShellMaterial.opacity = 0
+    } else if (expiryStatus === 'CRITICAL') {
+      // Alerte rapide : 0.15 → 0.65 (+ liseré 0.15 → 0.75)
+      color = EMISSIVE_CRITICAL
+      intensity = 0.4 + 0.25 * Math.sin(t * 5)
+      alertShellMaterial.color.copy(color)
+      alertShellMaterial.opacity = 0.45 + 0.3 * Math.sin(t * 5)
+    } else if (expiryStatus === 'WARNING') {
+      // Respiration lente : 0.05 → 0.35 (+ liseré 0.04 → 0.40)
+      color = EMISSIVE_WARNING
+      intensity = 0.2 + 0.15 * Math.sin(t * 2.5)
+      alertShellMaterial.color.copy(color)
+      alertShellMaterial.opacity = 0.22 + 0.18 * Math.sin(t * 2.5)
+    } else {
+      alertShellMaterial.opacity = 0
+      return
+    }
+
+    for (let i = 0; i < emissiveTargets.length; i += 1) {
+      const material = emissiveTargets[i]
+      material.emissive.copy(color)
+      material.emissiveIntensity = Math.max(0, intensity)
     }
   })
 
   // Surbrillance : émissive cyan, plus marquée quand l'item est sélectionné.
   // Les matériaux sont propres à l'instance → mutation sans effet de bord.
+  // Cet effet remet aussi l'émission à zéro quand l'item redevient normal
+  // (sortie de sélection, ou péremption redevenue lointaine).
   useEffect(() => {
-    const targets = [cartonMaterial, frontMaterial].filter(
-      (material): material is THREE.MeshStandardMaterial => material !== null,
-    )
-    const emissive = new THREE.Color(active ? (isSelected ? '#22d3ee' : '#4fc3f7') : '#000000')
+    const emissive = active
+      ? isSelected
+        ? EMISSIVE_SELECTED
+        : EMISSIVE_HOVER
+      : EMISSIVE_OFF
     // Intensité volontairement basse : au zoom « objet » (0.4 m) une émission
     // forte aplatit le packaging en une plaque cyan et efface son étiquette ;
     // c'est le halo qui porte l'information « sélectionné ».
     const intensity = active ? (isSelected ? 0.14 : 0.1) : 0
 
-    for (const material of targets) {
+    for (let i = 0; i < emissiveTargets.length; i += 1) {
+      const material = emissiveTargets[i]
       material.emissive.copy(emissive)
       material.emissiveIntensity = intensity
       material.needsUpdate = true
     }
-  }, [active, isSelected, isRecipeHighlighted, cartonMaterial, frontMaterial])
+  }, [active, isSelected, isRecipeHighlighted, expiryStatus, emissiveTargets])
 
   // Le curseur est global : on le restaure même si le mesh est démonté survolé
   useEffect(() => () => {
@@ -231,6 +306,32 @@ export function ProductItem3D({ item, position, zoneId }: ProductItem3DProps) {
           toneMapped={false}
         />
       </mesh>
+
+      {/* Liseré « fraîcheur » : coque inversée (BackSide) très discrète à la
+          couleur du colocataire. Statique — aucun clignotement, aucun
+          post-processing, une seule mesh supplémentaire par packaging. */}
+      {expiryStatus === 'FRESH' && (
+        <mesh raycast={() => null} scale={1.03}>
+          <boxGeometry args={[ITEM_W, ITEM_H, ITEM_D]} />
+          <meshBasicMaterial
+            color={item.ownerColorHex ?? EXPIRY_COLORS.fresh}
+            side={THREE.BackSide}
+            transparent
+            opacity={0.28}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
+
+      {/* Coque d'alerte de péremption : liseré rouge/ambre pulsant, rendu
+          uniquement pour les items CRITIQUE/WARNING (aucun coût pour les
+          autres). Le matériau est partagé avec `useFrame` (opacité animée). */}
+      {isExpiryAlert && (
+        <mesh raycast={() => null} scale={1.06} material={alertShellMaterial}>
+          <boxGeometry args={[ITEM_W, ITEM_H, ITEM_D]} />
+        </mesh>
+      )}
 
       <mesh
         material={materials}

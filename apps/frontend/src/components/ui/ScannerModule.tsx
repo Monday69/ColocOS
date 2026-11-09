@@ -200,6 +200,13 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
         storageZoneId,
         expiryDate: toExpiryIso(expiryDate),
         isShared,
+        // Macros OFF — persistées avec l'item (fiche nutrition du packaging 3D)
+        calories: product.nutrition?.calories ?? product.kcalPer100g ?? null,
+        proteins: product.nutrition?.proteins ?? null,
+        carbohydrates: product.nutrition?.carbohydrates ?? null,
+        fat: product.nutrition?.fat ?? null,
+        fiber: product.nutrition?.fiber ?? null,
+        novaGroup: product.nutrition?.novaGroup ?? null,
       });
       const newState = await api.getFridgeState();
       setFridgeState(newState);
@@ -232,11 +239,33 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
           <button onClick={onDismiss} className="text-text-tertiary hover:text-text-primary p-1 flex-shrink-0"><X size={14} /></button>
         </div>
         {typeof product.kcalPer100g === 'number' && (
-          <div className="flex items-center gap-1.5 mt-3 px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 w-fit">
-            <Zap size={10} className="text-amber-400" />
-            <span className="font-mono text-xs font-500 text-text-primary">
-              {Math.round(product.kcalPer100g)} kcal / 100g
-            </span>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40">
+              <Zap size={10} className="text-amber-400" />
+              <span className="font-mono text-xs font-500 text-text-primary tabular-nums">
+                {Math.round(product.kcalPer100g)} kcal / 100g
+              </span>
+            </div>
+            {typeof product.nutrition?.proteins === 'number' && (
+              <div className="px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 font-mono text-xs text-text-secondary tabular-nums">
+                P {Math.round(product.nutrition.proteins)} g
+              </div>
+            )}
+            {typeof product.nutrition?.carbohydrates === 'number' && (
+              <div className="px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 font-mono text-xs text-text-secondary tabular-nums">
+                G {Math.round(product.nutrition.carbohydrates)} g
+              </div>
+            )}
+            {typeof product.nutrition?.fat === 'number' && (
+              <div className="px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 font-mono text-xs text-text-secondary tabular-nums">
+                L {Math.round(product.nutrition.fat)} g
+              </div>
+            )}
+            {product.nutrition?.novaGroup ? (
+              <div className="px-2.5 py-1.5 rounded-lg bg-surface-3/60 border border-surface-border/40 font-mono text-xs text-text-secondary">
+                NOVA {product.nutrition.novaGroup}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

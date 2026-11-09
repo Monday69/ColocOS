@@ -22,6 +22,14 @@ export interface ZoneItemTwin {
   ownerName: string | null;
   /** Péremption ISO courte (YYYY-MM-DD), null si non renseignée */
   expiryDate: string | null;
+  /** Macros Open Food Facts (pour 100 g / 100 ml) */
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  /** Classification NOVA 1 → 4 (degré de transformation) */
+  novaGroup: number | null;
 }
 
 export interface ZoneTwin {
@@ -199,6 +207,18 @@ export interface ScannedProduct {
   fromCache: boolean;
   /** Énergie pour 100 g — renvoyée à plat par le ScannerService (OFF) */
   kcalPer100g?: number | null;
+  /** Données nutritionnelles structurées Open Food Facts */
+  nutrition?: ProductNutrition;
+}
+
+/** Macros Open Food Facts (pour 100 g / 100 ml). */
+export interface ProductNutrition {
+  calories: number | null;
+  proteins: number | null;
+  carbohydrates: number | null;
+  fat: number | null;
+  fiber: number | null;
+  novaGroup: number | null;
 }
 
 export interface AddToInventoryPayload {
@@ -213,6 +233,13 @@ export interface AddToInventoryPayload {
   expiryDate?: string | null;
   isShared: boolean;
   ownerId?: string | null;
+  /** Macros OFF (pour 100 g) — persistées avec l'item */
+  calories?: number | null;
+  proteins?: number | null;
+  carbohydrates?: number | null;
+  fat?: number | null;
+  fiber?: number | null;
+  novaGroup?: number | null;
 }
 
 /** Réponse de GET /api/products/lookup/:barcode */
@@ -244,6 +271,57 @@ export interface RecipeSuggestion {
   totalIngredients?: number;
   likes?: number;
   readyInMinutes?: number;
+  /** Protéines estimées par portion (g) — filtre « Riche en protéines » */
+  proteinGrams?: number | null;
+}
+
+// ── Nutrition : profil & cibles ───────────────────────────────────────────────
+
+export type NutritionGoal = 'MAINTENANCE' | 'LEAN_BULK' | 'CUT' | 'HIGH_PROTEIN';
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  colorHex: string;
+  avatarUrl: string | null;
+  birthDate: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  gender: 'M' | 'F' | null;
+  activityLevel: number;
+  nutritionGoal: NutritionGoal;
+}
+
+export interface NutritionTargets {
+  bmr: number;
+  tdee: number;
+  targetCalories: number;
+  targetProteins: number;
+  goal: NutritionGoal;
+  goalLabel: string;
+  proteinPerKg: number;
+  profile: {
+    birthDate: string | null;
+    age: number;
+    heightCm: number | null;
+    weightKg: number | null;
+    gender: 'M' | 'F' | null;
+    activityLevel: number;
+    nutritionGoal: NutritionGoal;
+  };
+  /** `true` quand un champ biométrique manque (repli appliqué) */
+  estimated: boolean;
+  missingFields: string[];
+}
+
+export interface UpdateProfilePayload {
+  birthDate?: string | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  gender?: 'M' | 'F' | null;
+  activityLevel?: number;
+  nutritionGoal?: NutritionGoal;
 }
 
 // ── Navigation (extended) ─────────────────────────────────────────────────────

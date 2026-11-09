@@ -2,7 +2,7 @@ import { prisma } from '../config/prisma';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
-import { ScannedProduct } from '../types';
+import { ScannedProduct, ProductNutrition } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Scanner Service
@@ -20,13 +20,13 @@ const OFF_CACHE_TTL_DAYS = 30;
 // ── Types bruts OpenFoodFacts ─────────────────────────────────────────────────
 
 interface OFFNutriments {
-  'energy-kcal_100g'?: number;
-  'energy-kcal'?: number;
-  proteins_100g?: number;
-  carbohydrates_100g?: number;
-  fat_100g?: number;
-  fiber_100g?: number;
-  salt_100g?: number;
+  'energy-kcal_100g'?: number | string;
+  'energy-kcal'?: number | string;
+  proteins_100g?: number | string;
+  carbohydrates_100g?: number | string;
+  fat_100g?: number | string;
+  fiber_100g?: number | string;
+  salt_100g?: number | string;
 }
 
 interface OFFProduct {
@@ -36,7 +36,7 @@ interface OFFProduct {
   image_front_url?: string;
   image_url?: string;
   nutriscore_grade?: string;
-  nova_group?: number;
+  nova_group?: number | string;
   quantity?: string;
   categories_tags?: string[];
   labels_tags?: string[];
@@ -52,6 +52,27 @@ interface OFFApiResponse {
 }
 
 // ── Normalisation du payload OFF ──────────────────────────────────────────────
+
+/**
+ * Convertit une valeur OFF (souvent une chaîne, parfois un nombre) en nombre
+ * fini ≥ 0, sinon `null`. OFF renvoie régulièrement `""` ou `"unknown"` sur les
+ * produits incomplets : ces cas ne doivent jamais produire `NaN` en base.
+ */
+function toNumberOrNull(value: number | string | undefined | null): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+
+  const parsed = Number.parseFloat(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Robuste : `nova_group` arrive en nombre ou en chaîne ("4"). */
+function toNovaGroup(value: number | string | undefined | null): number | null {
+  const parsed = toNumberOrNull(value);
+  if (parsed === null) return null;
+  const rounded = Math.round(parsed);
+  return rounded >= 1 && rounded <= 4 ? rounded : null;
+}
 
 function normalizeOFFProduct(barcode: string, raw: OFFProduct): ScannedProduct {
   // Priorité au nom français, puis générique
@@ -71,6 +92,19 @@ function normalizeOFFProduct(barcode: string, raw: OFFProduct): ScannedProduct {
   // Marque : prend la première si plusieurs (ex: "Danone, Activia")
   const brand = raw.brands ? raw.brands.split(',')[0].trim() : null;
 
+  const nutriments = raw.nutriments ?? {};
+
+  const nutrition: ProductNutrition = {
+    calories: toNumberOrNull(
+      nutriments['energy-kcal_100g'] ?? nutriments['energy-kcal'],
+    ),
+    proteins: toNumberOrNull(nutriments.proteins_100g),
+    carbohydrates: toNumberOrNull(nutriments.carbohydrates_100g),
+    fat: toNumberOrNull(nutriments.fat_100g),
+    fiber: toNumberOrNull(nutriments.fiber_100g),
+    novaGroup: toNovaGroup(raw.nova_group),
+  };
+
   return {
     barcode,
     name,
@@ -81,8 +115,9 @@ function normalizeOFFProduct(barcode: string, raw: OFFProduct): ScannedProduct {
       : null,
     quantity: raw.quantity ?? null,
     fromCache: false,
+    nutrition,
     // Champs étendus exposés pour l'UI
-    kcalPer100g: raw.nutriments?.['energy-kcal_100g'] ?? null,
+    kcalPer100g: nutrition.calories,
     ingredientsText: raw.ingredients_text_fr || raw.ingredients_text || null,
     allergensTags: raw.allergens_tags ?? [],
     categories: raw.categories_tags?.slice(0, 5) ?? [],
@@ -130,7 +165,7 @@ export class ScannerService {
 
     try {
       const response = await fetch(
-        `${env.OPENFOODFACTS_BASE_URL}/product/${barcode}?fields=product_name,product_name_fr,brands,image_front_url,nutriscore_grade,quantity,categories_tags,nutriments,ingredients_text_fr,allergens_tags`,
+        `${env.OPENFOODFACTS_BASE_URL}/product/${barcode}?fields=product_name,product_name_fr,brands,image_front_url,image_url,nutriscore_grade,nova_group,quantity,categories_tags,nutriments,ingredients_text_fr,allergens_tags`,
         {
           headers: {
             'User-Agent': 'ColocOS/1.0 (contact@colocos.local)',

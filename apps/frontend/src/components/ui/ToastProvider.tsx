@@ -170,6 +170,84 @@ export const toasts = {
   },
 
   /**
+   * Pont Recettes → Courses : ingrédients manquants envoyés en lot
+   */
+  shoppingBatchAdd: (count: number, recipeTitle: string) => {
+    const plural = count > 1 ? 's' : '';
+    toast(`${count} ingrédient${plural} ajouté${plural} aux courses`, {
+      description: recipeTitle,
+      style: {
+        background: '#0f1114',
+        border: '1px solid #00e67645',
+        boxShadow: '0 0 18px #00e67618, 0 8px 32px rgba(0,0,0,0.6)',
+        color: '#e8eaf0',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px',
+        borderRadius: '10px',
+      },
+      icon: '✓',
+      duration: 3200,
+    });
+  },
+
+  /**
+   * Notifications push — activation / désactivation
+   */
+  pushEnabled: () => {
+    toast('Alertes de péremption activées', {
+      description: 'Tu seras notifié à 9h pour les produits à échéance J+1.',
+      style: {
+        background: '#0f1114',
+        border: '1px solid #00e67655',
+        boxShadow: '0 0 18px #00e67618, 0 8px 32px rgba(0,0,0,0.6)',
+        color: '#e8eaf0',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px',
+        borderRadius: '10px',
+      },
+      icon: '🔔',
+      duration: 3500,
+    });
+  },
+
+  pushDisabled: () => {
+    toast('Alertes désactivées', {
+      description: 'Cet appareil ne recevra plus de notifications.',
+      style: {
+        background: '#0f1114',
+        border: '1px solid #ffffff22',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        color: '#e8eaf0',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px',
+        borderRadius: '10px',
+      },
+      icon: '🔕',
+      duration: 2500,
+    });
+  },
+
+  /**
+   * Profil nutritionnel mis à jour — cibles recalculées
+   */
+  profileUpdated: (calories: number, proteins: number) => {
+    toast('Objectifs recalculés', {
+      description: `${calories} kcal · ${proteins} g de protéines / jour`,
+      style: {
+        background: '#0f1114',
+        border: '1px solid #4fc3f745',
+        boxShadow: '0 0 18px #4fc3f715, 0 8px 32px rgba(0,0,0,0.6)',
+        color: '#e8eaf0',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px',
+        borderRadius: '10px',
+      },
+      icon: '🎯',
+      duration: 3200,
+    });
+  },
+
+  /**
    * Dépense enregistrée
    */
   addExpense: (description: string, amount: number, payerColor: string) => {

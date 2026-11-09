@@ -2,8 +2,8 @@ import { HEALTH_COLORS } from '@/lib/healthColors';
 import { useNavStore, useUIStore } from '@/store';
 
 const LEGEND_ITEMS = [
-  { status: 'critical', label: 'Critique (< 2j)',  color: HEALTH_COLORS.critical },
-  { status: 'warning',  label: 'Attention (< 7j)', color: HEALTH_COLORS.warning  },
+  { status: 'critical', label: 'Critique (≤ 2j)',  color: HEALTH_COLORS.critical },
+  { status: 'warning',  label: 'Attention (≤ 7j)', color: HEALTH_COLORS.warning  },
   { status: 'ok',       label: 'OK',               color: HEALTH_COLORS.ok       },
   { status: 'empty',    label: 'Vide',             color: HEALTH_COLORS.empty    },
 ] as const;

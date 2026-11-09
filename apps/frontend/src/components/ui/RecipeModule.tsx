@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChefHat, Clock, Star, ExternalLink,
   AlertCircle, Sparkles, CheckCircle2,
-  AlertTriangle, RefreshCw,
+  AlertTriangle, RefreshCw, Plus, Loader2, Check,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '@/api/client';
-import { useRecipesStore, useBridge } from '@/store';
+import { useRecipesStore, useBridge, useShoppingStore } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
+import { hapticSuccess } from '@/lib/haptics';
 import type { RecipeSuggestion } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +91,9 @@ function RecipeCard({
 }) {
   const { setHighlightedMeshIds } = useBridge();
   const [imgError, setImgError] = useState(false);
+  // Pont Recettes → Courses : état du bouton d'ajout groupé
+  const [batchState, setBatchState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const setShoppingList = useShoppingStore((s) => s.setShoppingList);
   const color = matchColor(recipe.matchScore);
   const usedCount = recipe.usedIngredients?.length ?? 0;
   const totalCount = recipe.totalIngredients ?? (usedCount + recipe.missingIngredients.length);
@@ -103,6 +107,32 @@ function RecipeCard({
   const handleMouseLeave = () => {
     // Le clic « épingle » la mise en valeur (indispensable sur mobile, sans hover)
     if (!isPinned) setHighlightedMeshIds([]);
+  };
+
+  /**
+   * Envoie tous les ingrédients manquants dans la liste de courses active.
+   * Le backend déduplique et renvoie la liste complète → on hydrate le store
+   * pour que l'onglet COURSES affiche les articles sans attendre un refetch.
+   */
+  const handleAddMissingToShopping = async (event: ReactMouseEvent) => {
+    event.stopPropagation(); // ne déclenche pas l'épinglage de la carte
+    if (batchState !== 'idle' || recipe.missingIngredients.length === 0) return;
+
+    setBatchState('loading');
+    try {
+      const list = await api.addMissingIngredientsToShopping(
+        recipe.missingIngredients.map((name) => ({ name })),
+      );
+      setShoppingList(list);
+      hapticSuccess();
+      toasts.shoppingBatchAdd(recipe.missingIngredients.length, recipe.title);
+      setBatchState('done');
+    } catch (err) {
+      setBatchState('idle');
+      toasts.error(
+        err instanceof Error ? err.message : "Impossible d'ajouter les ingrédients aux courses",
+      );
+    }
   };
 
   return (
@@ -211,6 +241,11 @@ function RecipeCard({
                 <span className="font-mono text-2xs text-health-ok">3D</span>
               </span>
             )}
+            {typeof recipe.proteinGrams === 'number' && (
+              <span className="ml-auto font-mono text-2xs text-amber-400 tabular-nums" title={`≈ ${recipe.proteinGrams} g de protéines par portion`}>
+                ⚡ {recipe.proteinGrams} g
+              </span>
+            )}
           </div>
         )}
 
@@ -236,6 +271,36 @@ function RecipeCard({
                 </span>
               )}
             </div>
+
+            {/* Pont Recettes → Courses : un tap = tous les manquants dans la liste */}
+            <button
+              type="button"
+              onClick={handleAddMissingToShopping}
+              disabled={batchState !== 'idle'}
+              aria-label={`Ajouter les ${recipe.missingIngredients.length} ingrédients manquants aux courses`}
+              className={clsx(
+                'mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-full border',
+                'px-3 py-1.5 text-xs font-medium transition-all active:scale-95',
+                batchState === 'done'
+                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400 cursor-default'
+                  : 'glass-capsule border-white/10 text-cyan-400 hover:text-cyan-300',
+              )}
+            >
+              {batchState === 'loading' ? (
+                <Loader2 size={11} className="animate-spin flex-shrink-0" />
+              ) : batchState === 'done' ? (
+                <Check size={11} className="flex-shrink-0" />
+              ) : (
+                <Plus size={11} className="flex-shrink-0" />
+              )}
+              <span className="leading-tight text-center">
+                {batchState === 'loading'
+                  ? 'Ajout…'
+                  : batchState === 'done'
+                    ? 'Ajoutés aux courses ✓'
+                    : `Ajouter les ${recipe.missingIngredients.length} manquants aux courses`}
+              </span>
+            </button>
           </div>
         )}
 
@@ -273,13 +338,16 @@ function RecipeCard({
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
 
-type FilterMode = 'all' | 'ready' | 'quick';
+type FilterMode = 'all' | 'ready' | 'quick' | 'protein';
+
+const PROTEIN_THRESHOLD_G = 25;
 
 function FilterTabs({ active, onChange }: { active: FilterMode; onChange: (f: FilterMode) => void }) {
   const tabs: { id: FilterMode; label: string }[] = [
     { id: 'all',   label: 'TOUT' },
     { id: 'ready', label: 'PRÊT' },
     { id: 'quick', label: '< 30 MIN' },
+    { id: 'protein', label: '⚡ PROTÉINES' },
   ];
 
   return (
@@ -341,6 +409,8 @@ export function RecipeModule() {
   const filteredRecipes = recipeSuggestions.filter(r => {
     if (filter === 'ready')  return r.missingIngredients.length === 0;
     if (filter === 'quick')  return r.prepTimeMin !== null && r.prepTimeMin <= 30;
+    // « Riche en protéines » : estimation par portion fournie par le catalogue local
+    if (filter === 'protein') return (r.proteinGrams ?? 0) >= PROTEIN_THRESHOLD_G;
     return true;
   });
 
@@ -463,7 +533,7 @@ export function RecipeModule() {
             <div className="text-center">
               <div className="font-mono text-sm text-text-tertiary">AUCUNE RECETTE</div>
               <div className="font-body text-xs text-text-tertiary/60 mt-1">
-                {filter === 'ready' ? 'Aucune recette réalisable avec le stock actuel' : 'Aucune recette rapide disponible'}
+                {filter === 'ready' ? 'Aucune recette réalisable avec le stock actuel' : filter === 'protein' ? `Aucune recette à plus de ${PROTEIN_THRESHOLD_G} g de protéines par portion` : 'Aucune recette rapide disponible'}
               </div>
               <button onClick={() => setFilter('all')} className="font-mono text-2xs text-accent mt-2 hover:text-accent-bright">
                 Voir toutes les suggestions →

@@ -7,8 +7,8 @@ export const AuthModal = () => {
   const isAuthenticated = useAuth((state: any) => state.isAuthenticated);
   const setAuth = useAuth((state: any) => state.setAuth);
   
-  const [email, setEmail] = useState('alice@colocos.local');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('matteo@colocos.local');
+  const [password, setPassword] = useState('coloc2026');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

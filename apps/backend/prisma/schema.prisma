@@ -71,6 +71,16 @@ model User {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   badgeId      String?  @unique @map("badge_id") @db.VarChar(100) 
 
+  // ── Profil nutritionnel & biométrie ───────────────────────────────────────
+  birthDate     DateTime?     @map("birth_date") @db.Date
+  heightCm      Float?        @map("height_cm")
+  weightKg      Float?        @map("weight_kg")
+  /// "M" | "F" — influence la constante de Mifflin-St Jeor
+  gender        String?       @db.Char(1)
+  /// Facteur d'activité : 1.2 (sédentaire) → 1.9 (très actif)
+  activityLevel Float         @default(1.2) @map("activity_level")
+  nutritionGoal NutritionGoal @default(MAINTENANCE) @map("nutrition_goal")
+
   // Relations
   ownedItems       Item[]          @relation("ItemOwner")
   expensesPaid     Expense[]       @relation("ExpensePayer")
@@ -79,8 +89,26 @@ model User {
   transactionsTo   Transaction[]   @relation("TransactionTo")
   shoppingItems    ShoppingItem[]  @relation("ShoppingItemAdder")
   activityLogs     ActivityLog[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
+}
+
+// ─────────────────────────────────────────
+// WEB PUSH — SOUSCRIPTIONS PWA
+// ─────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ─────────────────────────────────────────
@@ -125,6 +153,17 @@ model Item {
   imageUrl      String?     @map("image_url")
   nutriscore    String?     @db.Char(1) // A, B, C, D, E
   isShared      Boolean     @default(true) @map("is_shared")
+  // Empêche de re-notifier chaque jour le même produit (alerte J+1)
+  expiryNotified Boolean    @default(false) @map("expiry_notified")
+
+  // ── Nutrition (Open Food Facts, pour 100 g / 100 ml) ──────────────────────
+  calories      Float?      // kcal
+  proteins      Float?      // g
+  carbohydrates Float?      // g
+  fat           Float?      // g
+  fiber         Float?      // g
+  /// Classification NOVA 1 → 4 (degré de transformation)
+  novaGroup     Int?        @map("nova_group")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -282,4 +321,15 @@ model ActivityLog {
   @@index([action])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────
+// NUTRITION — objectifs personnalisés
+// ─────────────────────────────────────────
+
+enum NutritionGoal {
+  MAINTENANCE
+  LEAN_BULK
+  CUT
+  HIGH_PROTEIN
 }

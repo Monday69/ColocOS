@@ -1,9 +1,13 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, CloudOff } from 'lucide-react';
+import { Volume2, VolumeX, CloudOff, BellRing, BellOff, Loader2, UserRound } from 'lucide-react';
 import clsx from 'clsx';
 import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue, useNavStore } from '@/store';
 import { HEALTH_COLORS } from '@/lib/healthColors';
+import { toasts } from '@/components/ui/ToastProvider';
+import { UserProfileModal } from '@/components/ui/UserProfileModal';
+import { hapticTap } from '@/lib/haptics';
+import { disablePush, enablePush, getPushStatus, isPushSupported, type PushStatus } from '@/lib/push';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — HUD Overlay v2 (Sprint 8 — Audio Mute + Offline Indicator)
@@ -27,6 +31,64 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
   const { isOnline }           = useConnectivityStore();
   const { offlineCheckQueue }  = useOfflineQueue();
   const audioStartedRef        = useRef(false);
+
+  // ── Notifications push (alerte de péremption J+1) ─────────────────────────
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushStatus({
+        supported: false,
+        permission: 'unsupported',
+        subscribed: false,
+        serverConfigured: false,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    void getPushStatus()
+      .then((status) => {
+        if (!cancelled) setPushStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPushStatus({
+            supported: true,
+            permission: Notification.permission,
+            subscribed: false,
+            serverConfigured: false,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handlePushToggle = useCallback(async () => {
+    if (pushBusy) return;
+    hapticTap();
+    setPushBusy(true);
+
+    try {
+      if (pushStatus?.subscribed) {
+        setPushStatus(await disablePush());
+        toasts.pushDisabled();
+      } else {
+        setPushStatus(await enablePush());
+        toasts.pushEnabled();
+      }
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : 'Notifications indisponibles');
+      setPushStatus(await getPushStatus().catch(() => null));
+    } finally {
+      setPushBusy(false);
+    }
+  }, [pushBusy, pushStatus?.subscribed]);
 
   const summary = fridgeState?.summary;
 
@@ -122,6 +184,61 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             )}
           </AnimatePresence>
         </button>
+
+        {/* Notifications push — alerte de péremption J+1 */}
+        <button
+          onClick={handlePushToggle}
+          disabled={pushBusy || pushStatus?.supported === false}
+          title={
+            pushStatus?.supported === false
+              ? 'Notifications non supportées par ce navigateur'
+              : pushStatus?.permission === 'denied'
+                ? 'Notifications bloquées — autorise-les dans les réglages du navigateur'
+                : pushStatus?.subscribed
+                  ? 'Désactiver les alertes de péremption'
+                  : 'Activer les alertes de péremption (9h, J+1)'
+          }
+          aria-label="Notifications de péremption"
+          className={clsx(
+            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+            'border tap ease-ios',
+            pushStatus?.supported === false
+              ? 'border-white/5 text-slate-600 cursor-not-allowed'
+              : pushStatus?.subscribed
+                ? 'border-health-ok/30 text-health-ok bg-health-ok/10 hover:bg-health-ok/15 cursor-pointer'
+                : pushStatus?.permission === 'denied'
+                  ? 'border-health-critical/30 text-health-critical/80 cursor-pointer'
+                  : 'border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20 cursor-pointer',
+          )}
+          style={
+            pushStatus?.subscribed
+              ? { boxShadow: '0 0 14px rgba(0,230,118,0.16)' }
+              : undefined
+          }
+        >
+          {pushBusy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : pushStatus?.subscribed ? (
+            <BellRing size={14} />
+          ) : (
+            <BellOff size={14} />
+          )}
+        </button>
+
+        {/* Profil & objectifs nutritionnels (BMR / TDEE / protéines) */}
+        <button
+          onClick={() => {
+            hapticTap();
+            setIsProfileOpen(true);
+          }}
+          title="Profil & objectifs nutritionnels"
+          aria-label="Profil et objectifs nutritionnels"
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                     border border-white/10 text-slate-400 tap ease-ios cursor-pointer
+                     hover:text-slate-200 hover:border-white/20"
+        >
+          <UserRound size={14} />
+        </button>
       </div>
 
       {/* ── Status row ────────────────────────────────────────────────────── */}
@@ -182,6 +299,8 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
           null // Placeholder — could add a "✓ Synchronisé" flash here
         )}
       </AnimatePresence>
+
+      <UserProfileModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </div>
   );
 }

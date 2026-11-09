@@ -72,6 +72,8 @@ export interface RecipeSuggestionExtended extends RecipeSuggestion {
   servings?: number;
   likes?: number;
   readyInMinutes?: number;
+  /** Protéines estimées par portion (g), null si inconnues (moteur Spoonacular) */
+  proteinGrams?: number | null;
 }
 
 export type RecipeEngine = 'spoonacular' | 'local';
@@ -101,6 +103,8 @@ interface CatalogRecipe {
   image: string;
   readyInMinutes: number;
   likes: number;
+  /** Protéines estimées par portion (g) — alimente le filtre « Riche en protéines » */
+  proteinGrams: number;
   ingredients: string[];
 }
 
@@ -111,6 +115,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=70',
     readyInMinutes: 20,
     likes: 412,
+    proteinGrams: 18,
     ingredients: ['riz', 'sauce soja', 'œuf', 'oignon', 'huile'],
   },
   {
@@ -119,6 +124,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=600&q=70',
     readyInMinutes: 25,
     likes: 890,
+    proteinGrams: 28,
     ingredients: ['pâtes', 'lardons', 'œuf', 'parmesan', 'crème'],
   },
   {
@@ -127,6 +133,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1510693206972-df098062cb71?w=600&q=70',
     readyInMinutes: 12,
     likes: 305,
+    proteinGrams: 22,
     ingredients: ['œuf', 'persil', 'ciboulette', 'beurre'],
   },
   {
@@ -135,6 +142,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=70',
     readyInMinutes: 15,
     likes: 521,
+    proteinGrams: 8,
     ingredients: ['salade', 'tomate', 'concombre', 'maïs', 'vinaigre'],
   },
   {
@@ -143,6 +151,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&q=70',
     readyInMinutes: 20,
     likes: 640,
+    proteinGrams: 14,
     ingredients: ['nouilles', 'carotte', 'poivron', 'sauce soja'],
   },
   {
@@ -151,6 +160,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=600&q=70',
     readyInMinutes: 35,
     likes: 733,
+    proteinGrams: 24,
     ingredients: ['pâtes', 'fromage', 'crème', 'lait'],
   },
   {
@@ -159,6 +169,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1476718406336-bb5a9690ee2a?w=600&q=70',
     readyInMinutes: 40,
     likes: 388,
+    proteinGrams: 5,
     ingredients: ['carotte', 'pomme de terre', 'poireau', 'oignon', 'bouillon'],
   },
   {
@@ -167,6 +178,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=70',
     readyInMinutes: 55,
     likes: 954,
+    proteinGrams: 42,
     ingredients: ['poulet', 'thym', 'ail', 'beurre', 'pomme de terre'],
   },
   {
@@ -175,6 +187,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=600&q=70',
     readyInMinutes: 15,
     likes: 612,
+    proteinGrams: 22,
     ingredients: ['pain', 'jambon', 'fromage', 'beurre'],
   },
   {
@@ -183,6 +196,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=70',
     readyInMinutes: 10,
     likes: 445,
+    proteinGrams: 18,
     ingredients: ['tomate', 'mozzarella', 'basilic', 'huile olive'],
   },
   {
@@ -191,6 +205,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?w=600&q=70',
     readyInMinutes: 45,
     likes: 1023,
+    proteinGrams: 32,
     ingredients: ['pâtes', 'viande hachée', 'tomate', 'oignon', 'ail'],
   },
   {
@@ -199,6 +214,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=600&q=70',
     readyInMinutes: 40,
     likes: 267,
+    proteinGrams: 8,
     ingredients: ['riz', 'lait', 'sucre', 'vanille'],
   },
   {
@@ -207,6 +223,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600&q=70',
     readyInMinutes: 18,
     likes: 502,
+    proteinGrams: 30,
     ingredients: ['tortilla', 'poulet', 'salade', 'tomate', 'fromage'],
   },
   {
@@ -215,6 +232,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=600&q=70',
     readyInMinutes: 10,
     likes: 331,
+    proteinGrams: 12,
     ingredients: ['flocons avoine', 'lait', 'banane', 'miel'],
   },
   {
@@ -223,6 +241,7 @@ const LOCAL_CATALOG: CatalogRecipe[] = [
     image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=70',
     readyInMinutes: 12,
     likes: 289,
+    proteinGrams: 16,
     ingredients: ['pain', 'fromage chèvre', 'miel', 'noix'],
   },
 ];
@@ -582,6 +601,7 @@ export class RecipeService {
         usedIngredientRefs: used,
         totalIngredients,
         likes: recipe.likes,
+        proteinGrams: recipe.proteinGrams,
         availableInMeshIds: this.uniqueMeshIds(used.map((u) => u.meshId)),
       };
     })

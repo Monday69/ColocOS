@@ -83,6 +83,56 @@ export class ShoppingController {
 
   // ── Alias « liste active » ────────────────────────────────────────────────
 
+  /** POST /api/shopping/lists/active/items/batch — pont Recettes → Courses */
+  async addBatchItemsToActiveList(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = requireUser(req);
+      const rawItems = req.body?.items;
+
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        throw new AppError(400, 'Le tableau « items » doit contenir au moins un article.');
+      }
+
+      const items = rawItems
+        .filter((item): item is { name: string; quantity?: number; unit?: string } =>
+          typeof item === 'object' && item !== null && typeof (item as { name?: unknown }).name === 'string' &&
+          (item as { name: string }).name.trim().length > 0,
+        )
+        .map((item) => ({
+          name: item.name.trim(),
+          quantity: typeof item.quantity === 'number' ? item.quantity : undefined,
+          unit: typeof item.unit === 'string' ? item.unit : undefined,
+        }));
+
+      if (items.length === 0) {
+        throw new AppError(400, 'Chaque article doit avoir un nom (« name ») non vide.');
+      }
+
+      const { list, created, skipped } = await shoppingService.addBatchItemsToActiveList(
+        userId,
+        items,
+      );
+
+      const details = [
+        `${created} article(s) ajouté(s) à la liste active`,
+        skipped > 0 ? `${skipped} déjà présent(s)` : null,
+      ]
+        .filter(Boolean)
+        .join(' — ');
+
+      res.status(201).json({
+        success: true,
+        data: list,
+        // `created`/`skipped` sont ré-injectés dans le message : le contrat
+        // `ApiResponse.meta` ne porte que la pagination.
+        meta: { total: list.items.length },
+        message: details,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   /** POST /api/shopping/items */
   async addItemToActiveList(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

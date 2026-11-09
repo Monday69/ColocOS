@@ -45,6 +45,18 @@ function parseUnit(raw: string | undefined): ApiUnit {
   throw new AppError(400, `Unité invalide : ${String(raw)}.`);
 }
 
+/**
+ * Variante tolérante pour les ajouts en lot : une unité inconnue ne doit pas
+ * faire échouer les autres ingrédients de la recette.
+ */
+function safeParseUnit(raw: string | undefined): ApiUnit {
+  try {
+    return parseUnit(raw);
+  } catch {
+    return 'unit';
+  }
+}
+
 /** Include partagé : items triés (à acheter d'abord) + auteur. */
 const LIST_INCLUDE = {
   items: {
@@ -133,6 +145,33 @@ export interface AddShoppingItemInput {
   note?: string | null;
 }
 
+/** Élément d'un ajout en lot (pont Recettes → Courses). */
+export interface AddShoppingBatchInput {
+  name: string;
+  quantity?: number;
+  unit?: string;
+}
+
+export interface AddShoppingBatchResult {
+  list: ShoppingListDTO;
+  created: number;
+  /** Articles ignorés parce qu'ils sont déjà en attente dans la liste */
+  skipped: number;
+}
+
+/** Plafond de sécurité : un lot plus gros est presque sûrement un bug d'appel. */
+const MAX_BATCH_ITEMS = 50;
+
+/** Clé de déduplication : insensible à la casse, aux accents et aux espaces. */
+function normalizeItemName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export class ShoppingService {
   /**
    * Liste de courses active de la coloc. Créée à la volée si absente.
@@ -215,6 +254,106 @@ export class ShoppingService {
 
     logger.debug(`[Shopping] Article ajouté : ${item.name} (${quantity} ${unit})`);
     return toItemDTO(item as ItemRow);
+  }
+
+  /**
+   * Ajoute plusieurs articles à la liste active en une seule transaction.
+   *
+   * Usage : bouton « Ajouter les X manquants aux courses » d'une recette.
+   * - la liste active est récupérée (ou créée) en amont ;
+   * - les unités passent par `parseUnit()` (repli `unit`) ;
+   * - les doublons déjà `pending` sont ignorés (nom normalisé) : un double tap
+   *   sur le bouton ne remplit pas la liste de doublons ;
+   * - la liste complète est renvoyée pour rafraîchir le store front.
+   */
+  async addBatchItemsToActiveList(
+    userId: string,
+    inputs: AddShoppingBatchInput[],
+  ): Promise<AddShoppingBatchResult> {
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+      throw new AppError(400, 'Aucun article à ajouter.');
+    }
+    if (inputs.length > MAX_BATCH_ITEMS) {
+      throw new AppError(400, `Maximum ${MAX_BATCH_ITEMS} articles par ajout groupé.`);
+    }
+
+    const active = await this.getActiveList();
+
+    const pendingNames = new Set(
+      active.items
+        .filter((item) => item.status === 'pending')
+        .map((item) => normalizeItemName(item.name)),
+    );
+
+    const data: Array<{
+      name: string;
+      quantity: number;
+      unit: ApiUnit;
+      status: 'pending';
+      shoppingListId: string;
+      addedById: string;
+    }> = [];
+
+    let skipped = 0;
+
+    for (const input of inputs) {
+      const name = input.name?.trim();
+      if (!name) continue;
+
+      const key = normalizeItemName(name);
+      if (pendingNames.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      pendingNames.add(key);
+
+      const quantity = input.quantity ?? 1;
+
+      data.push({
+        name,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        // Une unité inconnue dans un lot ne doit pas faire échouer les autres
+        // articles : on retombe sur `unit` plutôt que de renvoyer 400.
+        unit: safeParseUnit(input.unit),
+        // Enum Prisma `ShoppingItemStatus` : la valeur est `pending`
+        // (le contrat front peut écrire `PENDING`, le mapping est ici).
+        status: 'pending',
+        shoppingListId: active.id,
+        addedById: userId,
+      });
+    }
+
+    if (data.length === 0) {
+      logger.debug(`[Shopping] Lot ignoré (${skipped} doublon(s), 0 nouveau)`);
+      return { list: active, created: 0, skipped };
+    }
+
+    await prisma.$transaction([
+      prisma.shoppingItem.createMany({ data }),
+      prisma.activityLog.create({
+        data: {
+          action: 'SHOPPING_ITEM_ADDED',
+          userId,
+          meta: {
+            batch: true,
+            count: data.length,
+            names: data.map((row) => row.name),
+            source: 'recipe',
+          },
+        },
+      }),
+    ]);
+
+    const updated = await prisma.shoppingList.findUniqueOrThrow({
+      where: { id: active.id },
+      include: LIST_INCLUDE,
+    });
+
+    logger.debug(
+      `[Shopping] ${data.length} article(s) ajouté(s) en lot (${skipped} doublon(s) ignoré(s))`,
+    );
+
+    return { list: toListDTO(updated as ListRow), created: data.length, skipped };
   }
 
   /**

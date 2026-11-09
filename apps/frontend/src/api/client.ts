@@ -3,6 +3,7 @@ import type {
   ApiResponse, FridgeStateTwin, ZoneDetail,
   FinanceStatus, ShoppingList, AuthUser,
   ScannedProduct, AddToInventoryPayload, RecipeSuggestion, ProductLookup,
+  UserProfile, NutritionTargets, UpdateProfilePayload,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -32,6 +33,15 @@ class ApiClient {
   login = (email: string, password: string) => this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   me = () => this.request<AuthUser>('/auth/me');
   getRoommates = () => this.request<AuthUser[]>('/auth/roommates');
+
+  // Profil nutritionnel & biométrie
+  getProfile = () => this.request<UserProfile>('/users/me/profile');
+  getNutritionTargets = () => this.request<NutritionTargets>('/users/me/nutrition-targets');
+  updateProfile = (payload: UpdateProfilePayload) =>
+    this.request<{ profile: UserProfile; targets: NutritionTargets }>('/users/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
 
   // Products (OpenFoodFacts)
   lookupProduct = (barcode: string) =>
@@ -67,6 +77,43 @@ class ApiClient {
     this.request(`/shopping/lists/${listId}/items/${itemId}/check`, { method: 'PATCH' });
   deleteShoppingItem = (listId: string, itemId: string) =>
     this.request(`/shopping/lists/${listId}/items/${itemId}`, { method: 'DELETE' });
+
+  /**
+   * Pont Recettes → Courses : ajoute en un appel tous les ingrédients manquants
+   * à la liste active. Le backend déduplique les articles déjà en attente et
+   * renvoie la liste complète (utilisée pour rafraîchir le store).
+   */
+  addMissingIngredientsToShopping = (
+    items: Array<{ name: string; quantity?: number; unit?: string }>,
+  ) =>
+    this.request<ShoppingList>('/shopping/lists/active/items/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+  // Notifications (Web Push)
+  getPushPublicKey = () =>
+    this.request<{ publicKey: string | null; configured: boolean }>('/notifications/public-key');
+  getPushServerStatus = () =>
+    this.request<{ configured: boolean; subscriptions: number }>('/notifications/status');
+  subscribePush = (subscription: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  }) =>
+    this.request('/notifications/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    });
+  unsubscribePush = (endpoint: string) =>
+    this.request('/notifications/subscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    });
+  sendTestPush = (itemId?: string) =>
+    this.request('/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify(itemId ? { itemId } : {}),
+    });
+
   // Scanner
   scanBarcode = (barcode: string) =>
     this.request<ScannedProduct>('/inventory/scan', { method: 'POST', body: JSON.stringify({ barcode }) });
