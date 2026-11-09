@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useId } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Scan, Search, X, Check, ChevronRight,
@@ -11,17 +11,24 @@ import { api } from '@/api/client';
 import { useScannerStore, useFridgeStore, useAudioStore } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
 import { ZONE_LAYOUT } from '@/lib/zoneLayout';
+import { BarcodeScanEngine } from '@/lib/barcode/scanEngine';
+import { hapticSuccess } from '@/lib/haptics';
 import type { ScannedProduct } from '@/types';
 
 // =============================================================================
 // ColocOS — Scanner Module v2 (Sprint 9 — Camera Scanner)
 //
-// Modes: 'input' → saisie manuelle | 'camera' → viseur html5-qrcode | 'result' → ProductCard
+// Modes: 'input' → saisie manuelle | 'camera' → viseur | 'result' → ProductCard
 //
-// html5-qrcode : chargement dynamique (import()) pour éviter le SSR.
-// L'instance est montée sur un div dédié (id unique via useId).
-// stopCamera() appelé explicitement à chaque démontage.
-// onSuccess → stop() → handleScan() + playDetectBlip()
+// Viseur : `BarcodeScanEngine` (lib/barcode) — le même pipeline que
+// BarcodeScannerModal. getUserMedia en 1920×1080 (min 1280×720), canvas
+// d'analyse à la résolution du flux (et non à la taille CSS du viseur),
+// `BarcodeDetector` natif seulement si `ean_13` est réellement supporté, sinon
+// ZXing JS à 10 fps. L'ancien `html5-qrcode` (qrbox 240×160) ne laissait pas
+// assez de pixels pour les barres 1D sur iOS.
+//
+// Cycle de vie : startCamera() sur geste utilisateur → engine.start() ;
+// détection → engine.stop() (LED éteinte) → onDetected(code) ; démontage → stop().
 //
 // Overlay caméra Industrial Dark :
 //   - Vignette radiale noire autour du flux vidéo
@@ -206,8 +213,8 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
   return (
     <motion.div initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-      className="rounded-xl border border-surface-border/60 bg-surface-2/80 overflow-hidden"
-      style={{ boxShadow: '0 0 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+      className="rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl overflow-hidden"
+      style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
       <div className="p-4">
         <div className="flex gap-3 items-start">
           <div className="w-16 h-16 rounded-lg flex-shrink-0 overflow-hidden bg-surface-3 border border-surface-border/40 flex items-center justify-center">
@@ -234,29 +241,30 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
         )}
       </div>
       <div className="h-px bg-gradient-to-r from-transparent via-surface-border/60 to-transparent" />
-      <div className="px-4 py-3 flex items-center gap-2">
+      <div className="px-4 py-3 flex flex-wrap items-end gap-2">
         <div className="flex-shrink-0">
-          <div className="label-section mb-1">QTÉ</div>
+          <div className="label-micro !text-[9px] mb-1">Qté</div>
           <input type="number" value={quantity} min="0.1" step="0.1" onChange={e => setQuantity(e.target.value)}
-            className="w-16 bg-surface-3 border border-surface-border rounded px-2 py-1.5 font-mono text-sm text-text-primary text-center focus:outline-none focus:border-accent transition-colors" />
+            className="w-16 bg-white/5 border border-white/10 rounded-xl px-2 py-2 font-mono text-sm text-white/90 text-center tabular-nums focus:outline-none focus:border-accent/60 transition-colors" />
         </div>
         <div className="flex-shrink-0">
-          <div className="label-section mb-1">UNITÉ</div>
+          <div className="label-micro !text-[9px] mb-1">Unité</div>
           <select value={unit} onChange={e => setUnit(e.target.value)}
-            className="bg-surface-3 border border-surface-border rounded px-2 py-1.5 font-mono text-sm text-text-primary focus:outline-none focus:border-accent transition-colors">
+            className="bg-white/5 border border-white/10 rounded-xl px-2 py-2 font-sans text-sm text-white/90 focus:outline-none focus:border-accent/60 transition-colors">
             {['unité','L','ml','kg','g','cl'].map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
-        <div className="flex-1">
-          <div className="label-section mb-1">EXPIRATION</div>
+        <div className="order-last basis-full sm:order-none sm:basis-auto sm:flex-1 min-w-[132px]">
+          <div className="label-micro !text-[9px] mb-1">Expiration</div>
           <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)}
-            className="w-full bg-surface-3 border border-surface-border rounded px-2 py-1.5 font-mono text-xs text-text-primary focus:outline-none focus:border-accent transition-colors" />
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 font-sans text-xs text-white/90
+                       focus:outline-none focus:border-accent/60 transition-colors [color-scheme:dark]" />
         </div>
         <div className="flex-shrink-0 text-center">
-          <div className="label-section mb-1">PARTAGÉ</div>
+          <div className="label-micro !text-[9px] mb-1">Partagé</div>
           <button onClick={() => setIsShared(v => !v)}
-            className={clsx('w-9 h-5 rounded-full relative transition-colors duration-200', isShared ? 'bg-accent/40' : 'bg-surface-3 border border-surface-border')}>
-            <motion.div className="absolute top-0.5 w-4 h-4 rounded-full bg-white"
+            className={clsx('w-10 h-6 rounded-full relative tap transition-colors duration-200', isShared ? 'bg-accent/40' : 'bg-white/10 border border-white/10')}>
+            <motion.div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow"
               animate={{ left: isShared ? '18px' : '2px' }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
           </button>
         </div>
@@ -276,11 +284,13 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
           )}
         </AnimatePresence>
       </div>
-      <div className="px-4 pb-4">
+      {/* Barre d'action collée au bas de la fiche : CONFIRMER reste accessible
+          même quand la carte défile dans la bottom sheet. */}
+      <div className="sticky bottom-0 px-4 pb-4 pt-2 bg-slate-900/70 backdrop-blur-xl border-t border-white/10">
         <button onClick={handleConfirm} disabled={!canConfirm || isConfirming}
-          className={clsx('w-full py-3 rounded-xl font-mono text-sm flex items-center justify-center gap-2 transition-all duration-200',
-            canConfirm && !isConfirming ? 'bg-health-ok/15 border border-health-ok/40 text-health-ok hover:bg-health-ok/25 cursor-pointer' : 'bg-surface-3/50 border border-surface-border/40 text-text-tertiary cursor-not-allowed')}
-          style={canConfirm ? { boxShadow: '0 0 20px #00e67615' } : undefined}>
+          className={clsx('w-full py-3 rounded-2xl font-sans text-sm flex items-center justify-center gap-2 ease-ios tap',
+            canConfirm && !isConfirming ? 'bg-health-ok/15 border border-health-ok/40 text-health-ok hover:bg-health-ok/25 cursor-pointer' : 'bg-white/5 border border-white/10 text-slate-500 cursor-not-allowed')}
+          style={canConfirm ? { boxShadow: '0 0 24px #00e67618, inset 0 1px 0 rgba(255,255,255,0.08)' } : undefined}>
           {isConfirming ? <><Loader2 size={14} className="animate-spin" /> AJOUT EN COURS…</> : <><Check size={14} /> CONFIRMER L'AJOUT</>}
         </button>
       </div>
@@ -295,13 +305,12 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
 type ScanState = 'idle' | 'starting' | 'active' | 'detected' | 'error';
 
 function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) => void; onClose: () => void }) {
-  // useId generates a stable unique id — safe with React 18 concurrent mode
-  const rawId = useId();
-  const viewfinderId = 'qr_' + rawId.replace(/[^a-zA-Z0-9]/g, '_');
-  const scannerRef = useRef<{ stop: () => Promise<void>; isScanning: boolean } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const engineRef = useRef<BarcodeScanEngine | null>(null);
+  const lastCodeRef = useRef<string | null>(null);
+  const cancelledRef = useRef(false);
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [permError, setPermError] = useState<string | null>(null);
-  const [lastCode, setLastCode] = useState<string | null>(null);
   const { isMuted } = useAudioStore();
 
   const playDetectBlip = useCallback(() => {
@@ -319,49 +328,80 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) 
     } catch { /* silent fail */ }
   }, [isMuted]);
 
+  const stopEngine = useCallback(() => {
+    const engine = engineRef.current;
+    engineRef.current = null;
+    engine?.stop();
+  }, []);
+
+  const handleDetected = useCallback((code: string) => {
+    if (lastCodeRef.current === code) return;
+    lastCodeRef.current = code;
+    setScanState('detected');
+    playDetectBlip();
+    hapticSuccess();
+    // Coupe la caméra AVANT de remonter le code (LED éteinte immédiatement)
+    stopEngine();
+    onDetected(code);
+  }, [onDetected, playDetectBlip, stopEngine]);
+
   const startCamera = useCallback(async () => {
+    if (engineRef.current) return;
+    const video = videoRef.current;
+    if (!video) {
+      setPermError('Viseur vidéo indisponible.');
+      setScanState('error');
+      return;
+    }
+
     setScanState('starting');
     setPermError(null);
+    lastCodeRef.current = null;
+
+    const engine = new BarcodeScanEngine(video, {
+      onDetected: handleDetected,
+      onFatal: (message) => {
+        if (cancelledRef.current) return;
+        engineRef.current = null;
+        engine.stop();
+        setPermError(message);
+        setScanState('error');
+      },
+    });
+    engineRef.current = engine;
+
     try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode(viewfinderId);
-      scannerRef.current = scanner as unknown as { stop: () => Promise<void>; isScanning: boolean };
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 12, qrbox: { width: 240, height: 160 }, aspectRatio: 1.5, disableFlip: false },
-        (decodedText: string) => {
-          if (lastCode === decodedText) return;
-          setLastCode(decodedText);
-          setScanState('detected');
-          playDetectBlip();
-          scanner.stop().catch(() => {}).finally(() => {
-            scannerRef.current = null;
-            onDetected(decodedText);
-          });
-        },
-        () => {},
-      );
-      setScanState('active');
+      await engine.start();
+      if (!cancelledRef.current && engineRef.current === engine) setScanState('active');
     } catch (err) {
+      engine.stop();
+      if (engineRef.current === engine) engineRef.current = null;
+      if (cancelledRef.current) return;
       const msg = err instanceof Error ? err.message : String(err);
       setPermError(
-        msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')
+        /permission|denied|notallowed/i.test(msg)
           ? 'Accès caméra refusé. Autorisez la caméra dans les paramètres du navigateur.'
-          : `Impossible d'ouvrir la caméra : ${msg}`
+          : `Impossible d'ouvrir la caméra : ${msg}`,
       );
       setScanState('error');
     }
-  }, [viewfinderId, lastCode, onDetected, playDetectBlip]);
+  }, [handleDetected]);
 
+  // Extinction garantie : fin de scan, fermeture, changement d'onglet, démontage
   useEffect(() => {
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
+    return () => {
+      cancelledRef.current = true;
+      const engine = engineRef.current;
+      engineRef.current = null;
+      engine?.stop();
+    };
   }, []);
 
   const cornerColor = scanState === 'detected' ? '#00e676' : '#4fc3f7';
   const cornerGlow  = scanState === 'detected' ? '0 0 12px #00e676' : '0 0 8px #4fc3f780';
 
   const handleClose = () => {
-    if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {});
+    stopEngine();
     onClose();
   };
 
@@ -374,8 +414,17 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) 
       {/* Viewfinder */}
       <div className="relative bg-black" style={{ aspectRatio: '4/3', minHeight: 220 }}>
 
-        {/* html5-qrcode video mount point */}
-        <div id={viewfinderId} className="w-full h-full" />
+        {/* Flux vidéo — résolution pleine (1920×1080 / min 1280×720).
+            `object-cover` : le moteur décode la zone réellement visible, à la
+            résolution du capteur (aucun canvas bridé à la taille CSS). */}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          muted
+          autoPlay
+          playsInline
+          disablePictureInPicture
+        />
 
         {/* Radial vignette */}
         <div className="absolute inset-0 pointer-events-none"
@@ -465,10 +514,11 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) 
               Autorisez l'accès à la caméra<br />pour scanner un code-barres
             </p>
             <button onClick={startCamera}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-mono text-sm text-black font-600 transition-all hover:scale-105 active:scale-100"
-              style={{ background: 'linear-gradient(135deg, #4fc3f7, #29b6f6)', boxShadow: '0 0 28px rgba(79,195,247,0.45), 0 4px 12px rgba(0,0,0,0.4)' }}>
+              className="flex items-center gap-2 h-11 px-5 rounded-2xl font-sans text-[13px] font-medium tap
+                         bg-gradient-to-br from-accent to-[#29b6f6] text-slate-950 transition-colors"
+              style={{ boxShadow: '0 0 28px rgba(79,195,247,0.35), inset 0 1px 0 rgba(255,255,255,0.35)' }}>
               <Camera size={14} />
-              DÉMARRER CAMÉRA
+              Démarrer la caméra
             </button>
           </div>
         )}
@@ -551,7 +601,9 @@ export function ScannerModule() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    // Bottom sheet : hauteur bornée à 85 vh, contenu défilant et marge basse qui
+    // dégage la barre de navigation → le bouton CONFIRMER reste atteignable.
+    <div className="flex flex-col min-h-0 max-h-[85vh] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
@@ -566,7 +618,7 @@ export function ScannerModule() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-3 min-h-0 pb-24">
         {/* Camera scanner */}
         <AnimatePresence>
           {mode === 'camera' && (
@@ -585,23 +637,24 @@ export function ScannerModule() {
                   onChange={e => setBarcodeInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleScan(barcodeInput); }}
                   placeholder="Code-barres EAN-13…"
-                  className="w-full bg-surface-3 border border-surface-border rounded-xl pl-9 pr-12 py-3 font-mono text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-12 py-3 font-sans text-sm text-white/90 placeholder-slate-500 focus:outline-none focus:border-accent/60 focus:bg-white/[0.07] transition-colors"
                   style={{ caretColor: '#4fc3f7' }} />
                 {barcodeInput && (
                   <button onClick={() => handleScan(barcodeInput)} disabled={isScanLoading}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-accent/15 border border-accent/40 text-accent rounded-lg font-mono text-2xs hover:bg-accent/25 transition-all disabled:opacity-50">
-                    SCAN
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-accent/15 border border-accent/40 text-accent rounded-xl font-sans text-[11px] uppercase tracking-wider tap hover:bg-accent/25 transition-colors disabled:opacity-50">
+                    Scan
                   </button>
                 )}
               </div>
 
               {/* Camera launch button */}
               <button onClick={() => setMode('camera')}
-                className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl border transition-all duration-200 group"
-                style={{ background: 'linear-gradient(135deg, rgba(79,195,247,0.07) 0%, rgba(79,195,247,0.02) 100%)', border: '1px solid rgba(79,195,247,0.28)', boxShadow: '0 0 20px rgba(79,195,247,0.08)' }}>
+                className="w-full flex items-center justify-center gap-2.5 h-12 rounded-2xl border border-accent/25 tap group
+                           bg-gradient-to-br from-accent/[0.10] to-accent/[0.02] transition-colors"
+                style={{ boxShadow: '0 8px 28px rgba(79,195,247,0.10), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
                 <Camera size={15} className="text-accent group-hover:scale-110 transition-transform" />
-                <span className="font-mono text-sm text-accent tracking-widest">DÉMARRER CAMÉRA</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-accent/50 animate-pulse" />
+                <span className="font-sans text-[13px] text-accent tracking-[0.18em] uppercase">Démarrer caméra</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-accent/60 animate-pulse" />
               </button>
 
               {/* Error */}
@@ -619,7 +672,9 @@ export function ScannerModule() {
                 <div className="flex flex-wrap gap-2">
                   {[{ code:'3017620422003',name:'Nutella'},{ code:'5000112637939',name:'Coca-Cola'},{ code:'3228857000852',name:'Évian'},{ code:'7622210449283',name:'Oreo'}].map(({ code, name }) => (
                     <button key={code} onClick={() => { setBarcodeInput(code); handleScan(code); }}
-                      className="px-2.5 py-1.5 rounded-lg border border-surface-border/50 bg-surface-3/50 font-mono text-2xs text-text-secondary hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-all">
+                      className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 font-sans text-[11px]
+                                 text-slate-300 hover:text-accent hover:border-accent/40 hover:bg-accent/10
+                                 tap transition-colors">
                       {name}
                     </button>
                   ))}

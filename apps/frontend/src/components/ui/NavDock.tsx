@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Refrigerator, Wallet, ShoppingCart, Scan, ChefHat } from 'lucide-react';
 import clsx from 'clsx';
 import { useNavStore, useFridgeStore, useFinanceStore, useShoppingStore } from '@/store';
+import { hapticTap } from '@/lib/haptics';
 import { FinanceModule } from './FinanceModule';
 import { ShoppingModule } from './ShoppingModule';
 import { ScannerModule } from './ScannerModule';
@@ -39,9 +40,10 @@ function NavTab({
     <button
       onClick={onClick}
       className={clsx(
-        'relative flex flex-col items-center gap-0.5 px-3.5 py-2.5 rounded-lg',
-        'transition-all duration-200 select-none focus:outline-none',
-        isActive ? 'text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+        'relative flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-xl',
+        // Retour tactile immédiat (iOS) + courbe de sortie douce
+        'tap ease-ios select-none focus:outline-none',
+        isActive ? 'text-white' : 'text-slate-400/80 hover:text-slate-200',
       )}
     >
       <div className="relative">
@@ -50,16 +52,18 @@ function NavTab({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full
-                       bg-health-critical flex items-center justify-center"
+            transition={{ type: 'spring', stiffness: 520, damping: 26 }}
+            className="absolute -top-1.5 -right-2 min-w-3.5 h-3.5 px-1 rounded-full
+                       bg-health-critical flex items-center justify-center
+                       ring-1 ring-white/20 tabular-nums"
           >
-            <span className="font-mono text-[8px] text-white leading-none">
+            <span className="font-mono text-[9px] text-white leading-none tabular-nums">
               {item.badgeCount > 9 ? '9+' : item.badgeCount}
             </span>
           </motion.div>
         )}
       </div>
-      <span className="font-display text-[9px] tracking-widest font-500 leading-none">
+      <span className="font-sans text-[9px] font-medium tracking-[0.12em] uppercase leading-none">
         {item.label}
       </span>
     </button>
@@ -95,22 +99,22 @@ function ModulePanel({ module }: { module: AppModule }) {
       animate="visible"
       exit="exit"
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="absolute bottom-[72px] left-2 right-2 rounded-xl overflow-hidden"
-      style={{
-        maxHeight: 'calc(100vh - 156px)',
-        background: 'linear-gradient(160deg, #14161a 0%, #0f1114 100%)',
-        border: '1px solid #2a2d35',
-        boxShadow: '0 -8px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
-      }}
+      className="glass-sheet absolute bottom-[72px] left-2 right-2 rounded-2xl overflow-hidden"
+      style={{ maxHeight: 'calc(100vh - 156px)' }}
     >
-      {/* Decorative top edge line */}
+      {/* Reflet spéculaire : dégradé de bordure fin plutôt qu'un liseré saturé */}
       <div
         className="h-px w-full flex-shrink-0"
         style={{ background: `linear-gradient(90deg, transparent, ${accentGrad}, transparent)` }}
       />
 
       <div
-        className="overflow-y-auto p-4"
+        className={clsx(
+          'p-4',
+          // SCAN : la module gère son propre scroll (bottom sheet) — un seul
+          // conteneur défilant évite les conflits de gestes sur mobile.
+          module === 'scanner' ? 'flex flex-col min-h-0 overflow-hidden' : 'overflow-y-auto',
+        )}
         style={{ maxHeight: 'calc(100vh - 172px)' }}
       >
         {module === 'finance'  && <FinanceModule />}
@@ -166,6 +170,7 @@ export function NavDock() {
   ];
 
   const handleTabClick = (id: AppModule) => {
+    hapticTap();
     if (id === activeModule && id !== 'fridge') {
       setActiveModule('fridge');
     } else {
@@ -184,24 +189,18 @@ export function NavDock() {
         )}
       </AnimatePresence>
 
-      {/* ── Dock Bar ─────────────────────────────────────────────────────── */}
+      {/* ── Dock Bar — capsule flottante en verre ────────────────────────── */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, type: 'spring', stiffness: 300, damping: 28 }}
-          className="relative flex items-center rounded-2xl px-1 py-1"
-          style={{
-            background: 'rgba(14,16,20,0.90)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(42,45,53,0.8)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
-          }}
+          className="glass-capsule relative flex items-center rounded-[22px] px-1 py-1"
         >
           {/* Sliding active indicator pill — width/position based on 5 items */}
           <motion.div
-            className="absolute top-1 bottom-1 rounded-xl"
-            style={{ background: 'rgba(79,195,247,0.08)', border: '1px solid rgba(79,195,247,0.18)' }}
+            className="absolute top-1 bottom-1 rounded-[18px] bg-white/10 ring-1 ring-white/15"
+            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}
             animate={{
               left: `calc(${activeIndex} * (100% / 5) + 4px)`,
               width: `calc(100% / 5 - 8px)`,

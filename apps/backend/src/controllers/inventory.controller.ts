@@ -6,6 +6,7 @@ import {
   CreateItemSchema,
   ConsumeItemSchema,
   ListItemsQuerySchema,
+  ItemIdParamSchema,
 } from '../dtos/inventory.dto';
 import { AppError } from '../middlewares/errorHandler';
 import { ApiResponse } from '../types';
@@ -139,6 +140,29 @@ export class InventoryController {
         success: true,
         data: result,
         message,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/inventory/items/:id
+   *
+   * Suppression définitive (consommation totale explicite).
+   * 404 propre si l'item n'existe pas.
+   */
+  async deleteItem(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+
+      const { id } = ItemIdParamSchema.parse(req.params);
+      const result = await inventoryService.deleteItem(id, req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: `"${result.name}" supprimé du stock.`,
       } satisfies ApiResponse);
     } catch (err) {
       next(err);

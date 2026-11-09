@@ -128,6 +128,10 @@ function AddItemForm({ onAdd, onClose }: { onAdd: (name: string, qty: number, un
       toasts.addItem(name.trim());
       setName(''); setQty('1');
       onClose();
+    } catch (err) {
+      // Ne jamais laisser un échec silencieux : l'utilisateur doit savoir que
+      // l'article n'a pas été enregistré (ex. unité refusée, réseau coupé).
+      toasts.error(err instanceof Error ? err.message : "Impossible d'ajouter l'article");
     } finally {
       setLoading(false);
     }

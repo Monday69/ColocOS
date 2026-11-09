@@ -5,6 +5,25 @@
 export type HealthStatus = 'critical' | 'warning' | 'ok' | 'empty';
 export type FillStatus   = 'full' | 'medium' | 'low' | 'empty';
 
+export interface ZoneItemTwin {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  quantity: number;
+  unit: string;
+  ownerColorHex: string | null;
+  isShared: boolean;
+  daysUntilExpiry: number | null;
+  /** Marque (tooltip produit sur le mesh 3D) */
+  brand: string | null;
+  /** Nutriscore A–E, null si inconnu */
+  nutriscore: string | null;
+  /** Prénom du propriétaire (pastille du tooltip) */
+  ownerName: string | null;
+  /** Péremption ISO courte (YYYY-MM-DD), null si non renseignée */
+  expiryDate: string | null;
+}
+
 export interface ZoneTwin {
   meshId: string;
   fillRatio: number;
@@ -14,6 +33,8 @@ export interface ZoneTwin {
   ownerColors: string[];
   nextExpiryDays: number | null;
   type: 'fridge' | 'freezer' | 'pantry' | 'cabinet';
+  /** Projection 3D des items (packagings) */
+  items: ZoneItemTwin[];
 }
 
 export interface FridgeSummary {
@@ -191,6 +212,17 @@ export interface AddToInventoryPayload {
   storageZoneId: string;
   expiryDate?: string | null;
   isShared: boolean;
+  ownerId?: string | null;
+}
+
+/** Réponse de GET /api/products/lookup/:barcode */
+export interface ProductLookup {
+  barcode: string;
+  name: string;
+  brand: string | null;
+  imageUrl: string | null;
+  nutriscore: string | null;
+  category: string | null;
 }
 
 // ── Recipes ───────────────────────────────────────────────────────────────────
@@ -205,6 +237,13 @@ export interface RecipeSuggestion {
   missingIngredients: string[];
   /** meshIds des zones qui contiennent les ingrédients disponibles */
   availableInMeshIds?: string[];
+  /** Ingrédients effectivement trouvés en stock */
+  usedIngredients?: string[];
+  /** Ingrédients trouvés + zone 3D associée */
+  usedIngredientRefs?: Array<{ name: string; meshId: string | null }>;
+  totalIngredients?: number;
+  likes?: number;
+  readyInMinutes?: number;
 }
 
 // ── Navigation (extended) ─────────────────────────────────────────────────────

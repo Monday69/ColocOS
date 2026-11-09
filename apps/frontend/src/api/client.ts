@@ -2,7 +2,7 @@ import { useStore } from '@/store';
 import type {
   ApiResponse, FridgeStateTwin, ZoneDetail,
   FinanceStatus, ShoppingList, AuthUser,
-  ScannedProduct, AddToInventoryPayload, RecipeSuggestion,
+  ScannedProduct, AddToInventoryPayload, RecipeSuggestion, ProductLookup,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -31,6 +31,11 @@ class ApiClient {
   // Auth
   login = (email: string, password: string) => this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   me = () => this.request<AuthUser>('/auth/me');
+  getRoommates = () => this.request<AuthUser[]>('/auth/roommates');
+
+  // Products (OpenFoodFacts)
+  lookupProduct = (barcode: string) =>
+    this.request<ProductLookup>(`/products/lookup/${encodeURIComponent(barcode)}`);
 
   // Finance
   getFinanceStatus = () => this.request<FinanceStatus>('/finance/status');
@@ -50,12 +55,17 @@ class ApiClient {
     });
 
   // Shopping
-  getShoppingList = () => this.request<ShoppingList[]>('/shopping/lists/active').then(lists => lists[0] ?? null);
+  // `GET /shopping/lists/active` renvoie la liste active (objet) ; on tolère
+  // aussi l'ancien format tableau pour rester compatible.
+  getShoppingList = () =>
+    this.request<ShoppingList | ShoppingList[]>('/shopping/lists/active').then((data) =>
+      Array.isArray(data) ? data[0] ?? null : data,
+    );
   addShoppingItem = (listId: string, data: { name: string; quantity: number; unit: string }) =>
     this.request(`/shopping/lists/${listId}/items`, { method: 'POST', body: JSON.stringify(data) });
   checkItem = (listId: string, itemId: string) =>
     this.request(`/shopping/lists/${listId}/items/${itemId}/check`, { method: 'PATCH' });
-  deleteItem = (listId: string, itemId: string) =>
+  deleteShoppingItem = (listId: string, itemId: string) =>
     this.request(`/shopping/lists/${listId}/items/${itemId}`, { method: 'DELETE' });
   // Scanner
   scanBarcode = (barcode: string) =>
@@ -69,6 +79,10 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ quantity }),
     });
+  };
+  /** Suppression définitive d'un item (consommation totale explicite). */
+  deleteItem = async (id: string): Promise<void> => {
+    await this.request(`/inventory/items/${id}`, { method: 'DELETE' });
   };
   getStorageZones = () =>
     this.request<Array<{ id: string; meshId: string; label: string; type: string }>>('/fridge/zones');

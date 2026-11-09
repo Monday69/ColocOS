@@ -62,6 +62,14 @@ export const ConsumeItemSchema = z.object({
 
 export type ConsumeItemDTO = z.infer<typeof ConsumeItemSchema>;
 
+// ── Suppression d'item ─────────────────────────────────────────────────────────
+
+export const ItemIdParamSchema = z.object({
+  id: z.string().uuid('id doit être un UUID valide'),
+});
+
+export type ItemIdParamDTO = z.infer<typeof ItemIdParamSchema>;
+
 // ── Mise à jour partielle ─────────────────────────────────────────────────────
 
 export const UpdateItemSchema = CreateItemSchema.partial().omit({

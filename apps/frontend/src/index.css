@@ -13,6 +13,29 @@
     overflow: hidden;
   }
 
+  /* Typographie système native (SF Pro sur iOS) + rendu ciselé */
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+      Inter, system-ui, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    /* iOS : pas de rebond de page ni de surbrillance bleue au tap */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Chiffres tabulaires par défaut sur les métriques techniques */
+  .font-mono,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar       { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -24,15 +47,42 @@
 
 /* ── Components ───────────────────────────────────────────────────────────── */
 @layer components {
-  /* Glass panel — utilisé pour les overlays UI */
+  /* « Liquid Glass » — verre ultra-fin calibré iOS.
+     Remplace l'ancien aplat gris : la scène 3D reste visible en transparence. */
   .panel {
-    @apply bg-surface-2/80 backdrop-blur-md border border-surface-border rounded-lg;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.5);
+    @apply bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150
+           border border-white/10 rounded-xl;
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  /* Variante plus dense (sheets, tiroirs) : même verre, ombre plus profonde */
+  .glass-sheet {
+    @apply bg-slate-900/70 backdrop-blur-2xl backdrop-saturate-150
+           border-t border-white/10;
+    box-shadow: 0 -8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  /* Capsule flottante (NavDock) : liseré spéculaire + verre saturé */
+  .glass-capsule {
+    @apply bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150
+           ring-1 ring-white/15;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+
+  /* Micro-capitale aérée (labels iOS / HUD) */
+  .label-micro {
+    @apply font-sans text-[10px] font-medium uppercase tracking-widest text-slate-400/80;
+  }
+
+  /* Retour tactile universel : compression instantanée au tap */
+  .tap {
+    @apply transition-transform duration-150 ease-out active:scale-95;
   }
 
   /* Mono data badge */
   .badge-mono {
-    @apply font-mono text-2xs px-1.5 py-0.5 rounded bg-surface-3 text-text-mono;
+    @apply font-mono text-2xs px-1.5 py-0.5 rounded bg-slate-900/50
+           border border-white/10 text-text-mono tabular-nums;
   }
 
   /* Status dot */
@@ -44,6 +94,11 @@
   .label-section {
     @apply font-display text-2xs font-medium tracking-[0.15em] uppercase text-text-tertiary;
   }
+}
+
+/* Courbe iOS standard — utilisée par les tiroirs et sheets */
+.ios-ease {
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* ── Utilities ────────────────────────────────────────────────────────────── */
@@ -111,3 +166,9 @@
   50%       { box-shadow: 0 0 0 4px rgba(255, 59, 59, 0); }
 }
 .badge-pulse { animation: badgePulse 2s ease-in-out infinite; }
+
+/* ── Safe areas iOS ────────────────────────────────────────────────────────
+   Le scanner est rendu via portail sur document.body, donc hors du padding
+   appliqué à #root : on réapplique les insets localement. */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }

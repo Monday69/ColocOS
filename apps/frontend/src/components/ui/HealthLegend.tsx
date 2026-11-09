@@ -1,4 +1,5 @@
 import { HEALTH_COLORS } from '@/lib/healthColors';
+import { useNavStore, useUIStore } from '@/store';
 
 const LEGEND_ITEMS = [
   { status: 'critical', label: 'Critique (< 2j)',  color: HEALTH_COLORS.critical },
@@ -7,21 +8,38 @@ const LEGEND_ITEMS = [
   { status: 'empty',    label: 'Vide',             color: HEALTH_COLORS.empty    },
 ] as const;
 
+/**
+ * Légende des couleurs de santé du frigo.
+ *
+ * Affichée uniquement sur l'onglet FRIGO, en vue d'ensemble : dès qu'une clayette
+ * est ouverte, qu'un produit est sélectionné ou qu'on navigue sur un autre onglet
+ * (SCAN notamment), le widget disparaît pour ne plus recouvrir les cartes
+ * d'action et les boutons de confirmation.
+ */
 export function HealthLegend() {
+  const activeModule = useNavStore((s) => s.activeModule);
+  const selectedMeshId = useUIStore((s) => s.selectedMeshId);
+  const selectedItemId = useUIStore((s) => s.selectedItemId);
+  const zoneDetail = useUIStore((s) => s.zoneDetail);
+
+  const isOverview =
+    activeModule === 'fridge' && !selectedMeshId && !selectedItemId && !zoneDetail;
+  if (!isOverview) return null;
+
   return (
-    <div className="absolute bottom-4 left-4 pointer-events-none select-none animate-fade-up z-10">
+    <div className="absolute bottom-24 left-4 md:bottom-4 pointer-events-none select-none animate-fade-up z-10">
       <div className="panel px-3 py-2.5 flex flex-col gap-1.5">
-        <div className="label-section mb-1">ÉTAT DE SANTÉ</div>
+        <div className="label-micro mb-1">État de santé</div>
         {LEGEND_ITEMS.map((item) => (
           <div key={item.status} className="flex items-center gap-2">
             <div
-              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+              className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/15"
               style={{
                 backgroundColor: item.color,
-                boxShadow: `0 0 6px ${item.color}80`,
+                boxShadow: `0 0 8px ${item.color}70`,
               }}
             />
-            <span className="font-body text-xs text-text-secondary">{item.label}</span>
+            <span className="font-sans text-[11px] text-slate-300/90 tabular-nums">{item.label}</span>
           </div>
         ))}
       </div>

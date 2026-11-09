@@ -33,6 +33,10 @@ router.patch(
   '/items/:id/consume',
   inventoryController.consumeItem.bind(inventoryController),
 );
+router.delete(
+  '/items/:id',
+  inventoryController.deleteItem.bind(inventoryController),
+);
 
 // ── Alertes DLC ───────────────────────────────────────────────────────────────
 router.get(

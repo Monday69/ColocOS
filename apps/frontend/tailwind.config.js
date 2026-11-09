@@ -40,15 +40,34 @@ export default {
         },
       },
       fontFamily: {
+        // Système natif (SF Pro sur iOS) — base des matériaux « Liquid Glass »
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Display"',
+          '"SF Pro Text"',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
         // Display — tight, technical
-        display: ['"Barlow Condensed"', 'sans-serif'],
+        display: ['"Barlow Condensed"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
         // Body — neutral, readable
-        body: ['"DM Sans"', 'sans-serif'],
+        body: ['"DM Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
         // Data — monospaced for numbers
-        mono: ['"JetBrains Mono"', 'monospace'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
         '2xs': ['0.65rem', { lineHeight: '1rem' }],
+      },
+      // Courbe iOS standard : sortie douce, sans rebond (sheets, tiroirs)
+      transitionTimingFunction: {
+        ios: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        'ios-out': 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
+      transitionDuration: {
+        250: '250ms',
+        400: '400ms',
       },
       boxShadow: {
         'glow-critical': '0 0 20px 2px #ff3b3b40, 0 0 60px 8px #ff3b3b20',
@@ -56,6 +75,14 @@ export default {
         'glow-ok':       '0 0 20px 2px #00e67640, 0 0 60px 8px #00e67620',
         'glow-accent':   '0 0 20px 2px #4fc3f740',
         'panel':         'inset 0 1px 0 #ffffff08, 0 4px 24px #00000060',
+        // « Liquid Glass » — ombre portée large et douce
+        'glass':         '0 8px 32px 0 rgba(0,0,0,0.4)',
+        'glass-lg':      '0 16px 48px 0 rgba(0,0,0,0.55)',
+        'capsule':       '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.10)',
+      },
+      backgroundImage: {
+        // Reflet spéculaire haut de carte (iOS material sheen)
+        sheen: 'linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 42%)',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

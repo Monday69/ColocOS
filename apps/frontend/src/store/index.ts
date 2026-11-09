@@ -32,6 +32,9 @@ type ColocOSStore = {
   setFridgeError: (error: string | null) => void;
   selectedMeshId: string | null; hoveredMeshId: string | null; zoneDetail: ZoneDetail | null;
   isPanelOpen: boolean; isDetailLoading: boolean;
+  /** Item 3D sélectionné (clic sur un packaging) — pilote le tooltip produit */
+  selectedItemId: string | null;
+  setSelectedItemId: (itemId: string | null) => void;
   setSelectedMesh: (meshId: string | null) => void;
   setHoveredMesh: (meshId: string | null) => void;
   setZoneDetail: (detail: ZoneDetail | null) => void;
@@ -77,11 +80,28 @@ export const useStore = create<ColocOSStore>()(
         setAuth: (token, refreshToken, user) => set({ token, refreshToken, user, isAuthenticated: true }, false, 'auth/setAuth'),
         logout: () => set({ token: null, refreshToken: null, user: null, isAuthenticated: false }, false, 'auth/logout'),
         fridgeState: null, lastFetchedAt: null, isLoading: false, error: null,
-        setFridgeState: (state) => set({ fridgeState: state, lastFetchedAt: new Date(), error: null }, false, 'fridge/setState'),
+        setFridgeState: (state) => set((s) => {
+          // Un item consommé/supprimé disparaît de l'état : on referme le
+          // tooltip associé pour ne jamais laisser d'infobulle orpheline.
+          const stillThere =
+            s.selectedItemId !== null &&
+            Object.values(state.zones).some((zone) =>
+              zone.items.some((item) => item.id === s.selectedItemId),
+            );
+          return {
+            fridgeState: state,
+            lastFetchedAt: new Date(),
+            error: null,
+            selectedItemId: stillThere ? s.selectedItemId : null,
+          };
+        }, false, 'fridge/setState'),
         setFridgeLoading: (loading) => set({ isLoading: loading }, false, 'fridge/setLoading'),
         setFridgeError: (error) => set({ error, isLoading: false }, false, 'fridge/setError'),
         selectedMeshId: null, hoveredMeshId: null, zoneDetail: null, isPanelOpen: false, isDetailLoading: false,
-        setSelectedMesh: (meshId) => set({ selectedMeshId: meshId }, false, 'ui/setSelectedMesh'),
+        selectedItemId: null,
+        setSelectedItemId: (itemId) => set({ selectedItemId: itemId }, false, 'ui/setSelectedItemId'),
+        // Changer de zone ferme le tooltip produit (le mesh n'est plus à l'écran)
+        setSelectedMesh: (meshId) => set({ selectedMeshId: meshId, selectedItemId: null }, false, 'ui/setSelectedMesh'),
         setHoveredMesh: (meshId) => set({ hoveredMeshId: meshId }, false, 'ui/setHoveredMesh'),
         setZoneDetail: (detail) => set({ zoneDetail: detail }, false, 'ui/setZoneDetail'),
         setPanelOpen: (open) => set({ isPanelOpen: open }, false, 'ui/setPanelOpen'),

@@ -77,16 +77,22 @@ function RecipeCard({
   recipe,
   index,
   isFavorite,
+  isPinned,
   onToggleFavorite,
+  onTogglePin,
 }: {
   recipe: RecipeSuggestion;
   index: number;
   isFavorite: boolean;
+  isPinned: boolean;
   onToggleFavorite: (recipe: RecipeSuggestion) => void;
+  onTogglePin: (recipe: RecipeSuggestion) => void;
 }) {
   const { setHighlightedMeshIds } = useBridge();
   const [imgError, setImgError] = useState(false);
   const color = matchColor(recipe.matchScore);
+  const usedCount = recipe.usedIngredients?.length ?? 0;
+  const totalCount = recipe.totalIngredients ?? (usedCount + recipe.missingIngredients.length);
 
   const handleMouseEnter = () => {
     if (recipe.availableInMeshIds?.length) {
@@ -95,7 +101,8 @@ function RecipeCard({
   };
 
   const handleMouseLeave = () => {
-    setHighlightedMeshIds([]);
+    // Le clic « épingle » la mise en valeur (indispensable sur mobile, sans hover)
+    if (!isPinned) setHighlightedMeshIds([]);
   };
 
   return (
@@ -111,14 +118,20 @@ function RecipeCard({
         damping: 28,
         delay: index * 0.06,
       }}
-      className="group relative flex flex-col rounded-xl border overflow-hidden cursor-default"
+      className={clsx(
+        'group relative flex flex-col rounded-xl border overflow-hidden cursor-pointer tap',
+        isPinned && 'ring-1 ring-health-ok/40',
+      )}
       style={{
-        borderColor: `${color}30`,
+        borderColor: isPinned ? '#00e67666' : `${color}30`,
         background: 'linear-gradient(160deg, #14161a 0%, #0f1114 100%)',
-        boxShadow: `0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)`,
+        boxShadow: isPinned
+          ? '0 6px 28px rgba(0,0,0,0.45), 0 0 0 1px #00e67633, inset 0 1px 0 rgba(255,255,255,0.04)'
+          : '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)',
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onClick={() => onTogglePin(recipe)}
       whileHover={{
         y: -2,
         boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px ${color}35, inset 0 1px 0 rgba(255,255,255,0.05)`,
@@ -185,6 +198,21 @@ function RecipeCard({
         </h3>
 
         <MatchScoreBar score={recipe.matchScore} />
+
+        {/* Ingrédients en stock */}
+        {totalCount > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-2xs text-text-tertiary tabular-nums">
+              {usedCount}/{totalCount} en stock
+            </span>
+            {isPinned && (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-health-ok/10 border border-health-ok/30">
+                <Sparkles size={8} className="text-health-ok" />
+                <span className="font-mono text-2xs text-health-ok">3D</span>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Missing ingredients */}
         {recipe.missingIngredients.length > 0 && (
@@ -282,6 +310,17 @@ export function RecipeModule() {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<string | null>(null);
+  // Recette « épinglée » : sa mise en valeur 3D reste active (utile sur mobile)
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const { setHighlightedMeshIds } = useBridge();
+
+  const handleTogglePin = useCallback((recipe: RecipeSuggestion) => {
+    setPinnedId((current) => {
+      const next = current === recipe.id ? null : recipe.id;
+      setHighlightedMeshIds(next && recipe.availableInMeshIds ? recipe.availableInMeshIds : []);
+      return next;
+    });
+  }, [setHighlightedMeshIds]);
 
   // Fetch suggestions on mount
   const fetchRecipes = useCallback(async () => {
@@ -443,7 +482,9 @@ export function RecipeModule() {
                   recipe={recipe}
                   index={i}
                   isFavorite={favorites.has(recipe.id)}
+                  isPinned={pinnedId === recipe.id}
                   onToggleFavorite={handleToggleFavorite}
+                  onTogglePin={handleTogglePin}
                 />
               ))}
             </AnimatePresence>

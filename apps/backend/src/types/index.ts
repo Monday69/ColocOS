@@ -116,4 +116,6 @@ export interface RecipeSuggestion {
   prepTimeMin: number | null;
   matchScore: number; // 0..1 — % d'ingrédients disponibles en stock
   missingIngredients: string[];
+  /** meshIds des zones 3D qui contiennent les ingrédients disponibles */
+  availableInMeshIds?: string[];
 }

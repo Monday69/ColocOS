@@ -71,6 +71,34 @@ export interface ZoneTwin {
 
   /** Type de zone — permet au frontend de choisir l'icône/overlay */
   type: 'fridge' | 'freezer' | 'pantry' | 'cabinet';
+
+  /**
+   * Projection minimale des items de la zone — sert au rendu procédural 3D
+   * (packagings posés sur les clayettes). Volontairement sans brand/expiry :
+   * le panneau latéral utilise GET /fridge/zones/:meshId pour le détail complet.
+   */
+  items: ZoneItemTwin[];
+}
+
+/** Item allégé pour l'instanciation des meshes produit côté Three.js. */
+export interface ZoneItemTwin {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  quantity: number;
+  unit: string;
+  /** Couleur du colocataire propriétaire (teinte du socle 3D) */
+  ownerColorHex: string | null;
+  isShared: boolean;
+  daysUntilExpiry: number | null;
+  /** Marque (tooltip produit sur le mesh 3D) */
+  brand: string | null;
+  /** Nutriscore A–E, null si inconnu */
+  nutriscore: string | null;
+  /** Prénom du propriétaire (pastille du tooltip) */
+  ownerName: string | null;
+  /** Date de péremption ISO courte (YYYY-MM-DD), null si non renseignée */
+  expiryDate: string | null;
 }
 
 /** Payload complet retourné par GET /api/fridge/state */

@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { api } from '@/api/client';
 import { useUIStore } from '@/store';
+import { toasts } from '@/components/ui/ToastProvider';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — useZoneDetail hook
@@ -32,6 +33,10 @@ export function useZoneDetail() {
         setZoneDetail(detail);
       } catch (err) {
         console.error('[useZoneDetail] Échec chargement zone:', err);
+        toasts.error(
+          'Zone indisponible',
+          err instanceof Error ? err.message : `Impossible de charger ${meshId}`,
+        );
         setZoneDetail(null);
       } finally {
         setDetailLoading(false);

@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, CloudOff } from 'lucide-react';
 import clsx from 'clsx';
-import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue } from '@/store';
+import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue, useNavStore } from '@/store';
 import { HEALTH_COLORS } from '@/lib/healthColors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +49,11 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
 
   const pendingSync = offlineCheckQueue.length;
 
+  // Les stats du Digital Twin n'ont de sens que sur l'onglet FRIGO : sur SCAN /
+  // COURSES / RECETTES, la barre libère la place au formulaire (le bouton mute,
+  // lui, reste accessible).
+  const showFridgeStats = useNavStore((s) => s.activeModule) === 'fridge';
+
   return (
     <div className="absolute top-4 left-4 flex flex-col gap-2 select-none z-10">
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
@@ -58,39 +63,48 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
         <span className="font-mono text-2xs text-text-tertiary ml-1">v1.0</span>
       </div>
 
-      <div className="label-section mb-1 pointer-events-none">DIGITAL TWIN — CUISINE</div>
+      {showFridgeStats && (
+        <div className="label-micro mb-1 pointer-events-none">Digital Twin — Cuisine</div>
+      )}
 
       {/* ── Stats + Mute button ───────────────────────────────────────────── */}
       <div className="panel px-3 py-2 flex items-center gap-3">
         {/* Stat chips */}
-        <div className="flex gap-4 pointer-events-none">
-          {stats.map((s) => (
-            <div key={s.label} className="flex flex-col items-center gap-0.5">
-              <span className="font-mono text-lg font-500 leading-none" style={{ color: s.color }}>
-                {s.value}
-              </span>
-              <span className="font-display text-2xs text-text-tertiary tracking-widest">
-                {s.label}
-              </span>
+        {showFridgeStats && (
+          <>
+            <div className="flex gap-4 pointer-events-none">
+              {stats.map((s) => (
+                <div key={s.label} className="flex flex-col items-center gap-0.5">
+                  <span
+                    className="font-mono text-lg font-medium leading-none tabular-nums"
+                    style={{ color: s.color }}
+                  >
+                    {s.value}
+                  </span>
+                  <span className="label-micro !text-[9px] !tracking-[0.14em]">
+                    {s.label}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Divider */}
-        <div className="w-px h-8 bg-surface-border/60 flex-shrink-0" />
+            {/* Divider */}
+            <div className="w-px h-8 bg-white/10 flex-shrink-0" />
+          </>
+        )}
 
         {/* Mute toggle — SEUL élément pointer-events auto dans ce panel */}
         <button
           onClick={handleMuteToggle}
           title={isMuted ? 'Activer le son' : 'Couper le son'}
           className={clsx(
-            'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-            'border transition-all duration-200 cursor-pointer',
+            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+            'border tap ease-ios cursor-pointer',
             isMuted
-              ? 'border-surface-border/50 text-text-tertiary hover:text-text-secondary hover:border-surface-border'
-              : 'border-accent/30 text-accent bg-accent/5 hover:bg-accent/12',
+              ? 'border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+              : 'border-accent/30 text-accent bg-accent/10 hover:bg-accent/15',
           )}
-          style={!isMuted ? { boxShadow: '0 0 10px rgba(79,195,247,0.12)' } : undefined}
+          style={!isMuted ? { boxShadow: '0 0 14px rgba(79,195,247,0.14)' } : undefined}
         >
           <AnimatePresence mode="wait" initial={false}>
             {isMuted ? (

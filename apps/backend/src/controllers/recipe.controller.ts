@@ -20,6 +20,8 @@ export class RecipeController {
         data: {
           suggestions: result.suggestions,
           meta: {
+            engine: result.engine,
+            fallbackReason: result.fallbackReason,
             stockIngredientCount: result.stockIngredientCount,
             normalizedIngredients: result.normalizedIngredients,
             untranslatedIngredients: result.untranslatedIngredients,
@@ -27,9 +29,12 @@ export class RecipeController {
             totalSuggestions: result.suggestions.length,
           },
         },
-        message: result.fromCache
-          ? `${result.suggestions.length} recettes suggérées (cache)`
-          : `${result.suggestions.length} recettes suggérées basées sur ${result.stockIngredientCount} ingrédients en stock`,
+        message:
+          result.engine === 'local'
+            ? `${result.suggestions.length} recettes (catalogue local) basées sur ${result.stockIngredientCount} ingrédients en stock`
+            : result.fromCache
+              ? `${result.suggestions.length} recettes suggérées (cache)`
+              : `${result.suggestions.length} recettes suggérées basées sur ${result.stockIngredientCount} ingrédients en stock`,
       } satisfies ApiResponse);
     } catch (err) {
       next(err);

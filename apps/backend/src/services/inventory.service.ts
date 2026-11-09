@@ -216,6 +216,48 @@ export class InventoryService {
   }
 
   /**
+   * Supprime définitivement un item du stock (consommation totale explicite).
+   *
+   * Différence avec consumeItem(quantity = tout le stock) :
+   *   - pas d'ajout automatique à la liste de courses (suppression volontaire)
+   *   - 404 propre si l'item n'existe pas
+   */
+  async deleteItem(
+    itemId: string,
+    userId?: string,
+  ): Promise<{ deletedId: string; name: string }> {
+    const item = await prisma.item.findUnique({
+      where: { id: itemId },
+      include: { storageZone: true },
+    });
+
+    if (!item) {
+      throw new AppError(404, `Item introuvable : ${itemId}`);
+    }
+
+    await prisma.item.delete({ where: { id: itemId } });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          action: 'ITEM_REMOVED',
+          userId,
+          meta: {
+            itemId,
+            itemName: item.name,
+            zoneName: item.storageZone.label,
+            reason: 'deleted',
+          },
+        },
+      });
+    }
+
+    logger.info(`[Inventory] Item supprimé : ${item.name} (id: ${itemId})`);
+
+    return { deletedId: itemId, name: item.name };
+  }
+
+  /**
    * Ajoute automatiquement un item épuisé à la liste de courses active.
    * Évite les doublons (vérifie si un item pending avec le même nom existe déjà).
    */

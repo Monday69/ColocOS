@@ -6,6 +6,7 @@ import {
   ZoneTwin,
   ZoneDetail,
   ZoneItemDetail,
+  ZoneItemTwin,
   FridgeStateTwin,
   FridgeSummary,
   HealthStatus,
@@ -181,6 +182,38 @@ function toZoneItemDetail(
 }
 
 /**
+ * Transforme un item Prisma enrichi en projection légère pour la 3D.
+ */
+function toZoneItemTwin(
+  item: ZoneWithItems['items'][number],
+  now: Date,
+): ZoneItemTwin {
+  const daysUntilExpiry =
+    item.expiryDate !== null
+      ? Math.ceil((item.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+  return {
+    id: item.id,
+    name: item.name,
+    imageUrl: item.imageUrl,
+    quantity: Number(item.quantity),
+    unit: item.unit,
+    ownerColorHex: item.owner?.colorHex ?? null,
+    isShared: item.isShared,
+    daysUntilExpiry,
+    // Champs consommés par le tooltip produit du mesh 3D (clic sur packaging) :
+    // l'état /fridge/state doit suffire à l'afficher, sans second appel réseau.
+    brand: item.brand,
+    nutriscore: item.nutriscore,
+    ownerName: item.owner?.name ?? null,
+    expiryDate: item.expiryDate
+      ? item.expiryDate.toISOString().split('T')[0]
+      : null,
+  };
+}
+
+/**
  * Convertit le type Prisma StorageType en union littérale TypeScript.
  */
 function toZoneType(t: StorageType): 'fridge' | 'freezer' | 'pantry' | 'cabinet' {
@@ -265,6 +298,7 @@ export class StorageService {
         ownerColors,
         nextExpiryDays,
         type: toZoneType(zone.type),
+        items: zone.items.map((item) => toZoneItemTwin(item, now)),
       };
 
       // ── Agrégation summary ─────────────────────────────────────────────────
