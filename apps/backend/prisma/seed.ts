@@ -15,7 +15,7 @@ async function main() {
     { name: 'Aymeric Bonnans',  email: 'pote3@colocos.local',   colorHex: '#EC4899' },
     { name: 'Mathys Gerrer',  email: 'pote4@colocos.local',   colorHex: '#8B5CF6' },
     { name: 'Roméo Blanchet',  email: 'pote5@colocos.local',   colorHex: '#EF4444' },
-    { name: 'Corentin Haverlant',  email: 'pote6@colocos.local',   colorHex: '#YU8544' },
+    { name: 'Corentin Haverlant',  email: 'pote6@colocos.local',   colorHex: '#E08544' },
   ];
 
   // Mot de passe unique par défaut pour tout le monde en dev

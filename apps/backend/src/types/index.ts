@@ -71,6 +71,10 @@ export interface ItemSummary {
   nutriscore: string | null;
   isShared: boolean;
   ownerId: string | null;
+  /** Quantité de référence (jauge de niveau) */
+  initialQuantity: number;
+  /** Renseigné quand l'article est terminé (soft-delete) */
+  consumedAt: string | null;
   // ── Nutrition (pour 100 g / 100 ml) ──
   calories: number | null;
   proteins: number | null;

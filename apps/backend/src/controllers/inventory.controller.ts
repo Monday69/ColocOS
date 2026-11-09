@@ -5,6 +5,8 @@ import {
   ScanBarcodeSchema,
   CreateItemSchema,
   ConsumeItemSchema,
+  ConsumePartSchema,
+  QuickAddSchema,
   ListItemsQuerySchema,
   ItemIdParamSchema,
 } from '../dtos/inventory.dto';
@@ -107,6 +109,73 @@ export class InventoryController {
     try {
       const item = await inventoryService.getItemById(req.params.id);
       res.status(200).json({ success: true, data: item } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/inventory/presets
+   * Catalogue des aliments frais (boucherie, primeur, boulangerie) avec DLC
+   * sanitaires, zone conseillée et macros par défaut.
+   */
+  async getPresets(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const catalog = inventoryService.getFreshPresets();
+      res.status(200).json({
+        success: true,
+        data: catalog,
+        message: `${catalog.presets.length} aliments frais disponibles`,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/inventory/items/quick-add
+   * Ajout sans code-barres : preset frais (ou nom libre), quantité, DLC et zone
+   * de rangement résolues automatiquement.
+   */
+  async quickAddItem(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+
+      const dto = QuickAddSchema.parse(req.body);
+      const result = await inventoryService.quickAddItem(req.user.id, dto);
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: `${result.item.name} rangé dans ${result.zoneLabel} (DLC ${result.expiryDate})`,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/inventory/items/:id/consume-part
+   * Body: { amount: number } — consommation progressive (jauge du tooltip 3D).
+   */
+  async consumeItemPart(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+
+      const dto = ConsumePartSchema.parse(req.body);
+      const result = await inventoryService.consumeItemQuantity(
+        req.params.id,
+        req.user.id,
+        dto.amount,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: result.isFullyConsumed
+          ? 'Article terminé — retiré du frigo'
+          : `Consommation enregistrée. Restant : ${result.remainingQuantity}`,
+      } satisfies ApiResponse);
     } catch (err) {
       next(err);
     }

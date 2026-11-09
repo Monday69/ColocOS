@@ -70,6 +70,17 @@ export const ConsumeItemSchema = z.object({
 
 export type ConsumeItemDTO = z.infer<typeof ConsumeItemSchema>;
 
+// ── Consommation progressive (Sprint 2) ──────────────────────────────────────
+
+export const ConsumePartSchema = z.object({
+  amount: z
+    .number()
+    .positive('La quantité consommée doit être strictement positive')
+    .max(99999, 'Quantité trop importante'),
+});
+
+export type ConsumePartDTO = z.infer<typeof ConsumePartSchema>;
+
 // ── Suppression d'item ─────────────────────────────────────────────────────────
 
 export const ItemIdParamSchema = z.object({
@@ -102,3 +113,22 @@ export const ListItemsQuerySchema = z.object({
 });
 
 export type ListItemsQueryDTO = z.infer<typeof ListItemsQuerySchema>;
+
+// ── Sprint 3 : ajout rapide d'un aliment frais (sans code-barres) ─────────────
+
+export const QuickAddSchema = z.object({
+  name: z.string().trim().max(120, 'Nom trop long (120 caractères max)').optional(),
+  presetId: z.string().trim().max(60).optional(),
+  quantity: z.number().positive('La quantité doit être strictement positive').max(99999).optional(),
+  unit: z.enum(['unit', 'g', 'kg', 'ml', 'L']).optional(),
+  shelfLifeDays: z.number().int().min(0).max(3650).optional(),
+  storageZoneId: z.string().uuid('Zone de stockage invalide').optional(),
+  isShared: z.boolean().optional(),
+  /** Override manuel de la DLC (mini date-picker) — `YYYY-MM-DD` */
+  expiryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide (format YYYY-MM-DD)')
+    .optional(),
+});
+
+export type QuickAddDTO = z.infer<typeof QuickAddSchema>;

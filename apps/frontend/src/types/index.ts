@@ -22,6 +22,8 @@ export interface ZoneItemTwin {
   ownerName: string | null;
   /** Péremption ISO courte (YYYY-MM-DD), null si non renseignée */
   expiryDate: string | null;
+  /** Quantité de référence de l'article (jauge de niveau) */
+  initialQuantity: number;
   /** Macros Open Food Facts (pour 100 g / 100 ml) */
   calories: number | null;
   proteins: number | null;
@@ -336,3 +338,75 @@ export interface UpdateProfilePayload {
 // ── Navigation (extended) ─────────────────────────────────────────────────────
 
 export type AppModule = 'fridge' | 'finance' | 'shopping' | 'scanner' | 'recipes';
+
+// ── Aliments frais — ajout rapide sans code-barres (Sprint 3) ─────────────────
+
+export type FreshCategoryId = 'butcher' | 'produce' | 'bakery';
+
+export interface FreshCategory {
+  id: FreshCategoryId;
+  label: string;
+  emoji: string;
+}
+
+export interface FreshPreset {
+  id: string;
+  name: string;
+  category: FreshCategoryId;
+  emoji: string;
+  /** Durée de conservation sanitaire, en jours */
+  shelfLifeDays: number;
+  /** Zone de rangement recommandée (meshId StorageZone) */
+  zoneMeshId: string;
+  zoneLabel: string;
+  unit: 'unit' | 'g' | 'kg' | 'ml' | 'L';
+  defaultQty: number;
+  /** Macros pour 100 g / 100 ml */
+  calories: number | null;
+  proteins: number | null;
+  keywords: string[];
+  /** `J+2`, `J+7`… calculé côté API */
+  shelfLifeLabel: string;
+  /** DLC proposée (YYYY-MM-DD) calculée côté API */
+  defaultExpiryDate: string;
+}
+
+export interface FreshCatalog {
+  categories: FreshCategory[];
+  presets: FreshPreset[];
+}
+
+export interface QuickAddPayload {
+  name?: string;
+  presetId?: string;
+  quantity?: number;
+  unit?: FreshPreset['unit'];
+  shelfLifeDays?: number;
+  storageZoneId?: string;
+  isShared?: boolean;
+  /** Override manuel de la DLC (YYYY-MM-DD) */
+  expiryDate?: string;
+}
+
+export interface QuickAddResult {
+  item: {
+    id: string;
+    name: string;
+    quantity: number;
+    initialQuantity: number;
+    unit: string;
+    expiryDate: string | null;
+    isShared: boolean;
+    storageZoneLabel: string;
+  };
+  zoneId: string;
+  zoneLabel: string;
+  zoneMeshId: string;
+  expiryDate: string;
+  presetApplied: {
+    id: string;
+    name: string;
+    shelfLifeDays: number;
+    category: string;
+  } | null;
+}

@@ -99,6 +99,8 @@ export interface ZoneItemTwin {
   ownerName: string | null;
   /** Date de péremption ISO courte (YYYY-MM-DD), null si non renseignée */
   expiryDate: string | null;
+  /** Quantité de référence de l'article (jauge de niveau du tooltip) */
+  initialQuantity: number;
   /** Macros Open Food Facts (pour 100 g / 100 ml) */
   calories: number | null;
   proteins: number | null;

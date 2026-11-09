@@ -210,6 +210,8 @@ function toZoneItemTwin(
     expiryDate: item.expiryDate
       ? item.expiryDate.toISOString().split('T')[0]
       : null,
+    // Jauge de niveau : `quantity` (courant) rapporté à `initialQuantity`
+    initialQuantity: Number(item.initialQuantity),
     // Macros (pour 100 g) — alimentent la fiche nutrition du packaging
     calories: item.calories,
     proteins: item.proteins,
@@ -246,6 +248,8 @@ export class StorageService {
     const zones = await prisma.storageZone.findMany({
       include: {
         items: {
+          // Un article terminé (consumedAt renseigné) quitte le jumeau numérique
+          where: { consumedAt: null },
           include: {
             // On charge seulement les champs nécessaires au calcul des couleurs
             owner: {

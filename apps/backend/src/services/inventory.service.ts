@@ -2,8 +2,20 @@ import { Prisma, Unit } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
-import { CreateItemDTO, ConsumeItemDTO, ListItemsQueryDTO } from '../dtos/inventory.dto';
+import {
+  CreateItemDTO,
+  ConsumeItemDTO,
+  ListItemsQueryDTO,
+  QuickAddDTO,
+} from '../dtos/inventory.dto';
 import { ItemSummary } from '../types';
+import {
+  FRESH_CATEGORIES,
+  FRESH_PRESETS,
+  findPreset,
+  type FreshCategory,
+  type FreshPreset,
+} from '../constants/freshPresets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Inventory Service
@@ -27,6 +39,29 @@ export interface ConsumeResult {
   addedToShoppingList: boolean;
 }
 
+/** Résultat de `quickAddItem` (Sprint 3 — aliments frais sans code-barres). */
+export interface QuickAddResult {
+  item: ItemSummary & { storageZoneLabel: string };
+  zoneId: string;
+  zoneLabel: string;
+  zoneMeshId: string;
+  expiryDate: string;
+  presetApplied: {
+    id: string;
+    name: string;
+    shelfLifeDays: number;
+    category: string;
+  } | null;
+}
+
+/** Résultat de `consumeItemQuantity` (consommation progressive). */
+export interface ConsumePartResult {
+  item: ItemSummary & { storageZoneLabel: string };
+  isFullyConsumed: boolean;
+  remainingQuantity: number;
+  addedToShoppingList: boolean;
+}
+
 export interface PaginatedItems {
   items: (ItemSummary & { storageZoneLabel: string; storageZoneMeshId: string })[];
   total: number;
@@ -35,6 +70,29 @@ export interface PaginatedItems {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Date calendaire locale à midi, ramenée à minuit UTC (colonne `@db.Date`). */
+function localDatePlusDays(base: Date, days: number): Date {
+  const noon = new Date(base.getFullYear(), base.getMonth(), base.getDate() + days, 12, 0, 0);
+  return new Date(Date.UTC(noon.getFullYear(), noon.getMonth(), noon.getDate()));
+}
+
+/** `YYYY-MM-DD`. */
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Parse `YYYY-MM-DD` en date UTC (évite tout décalage de fuseau). */
+function parseIsoDate(value: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError(400, 'Date de péremption invalide (format attendu : YYYY-MM-DD).');
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AppError(400, 'Date de péremption invalide.');
+  }
+  return parsed;
+}
 
 function toItemSummary(item: {
   id: string;
@@ -53,6 +111,10 @@ function toItemSummary(item: {
   fat: number | null;
   fiber: number | null;
   novaGroup: number | null;
+  /** Quantité de référence pour la jauge (posée à la création) */
+  initialQuantity: number;
+  /** Date de fin de l'article (soft-delete) */
+  consumedAt: Date | null;
 }): ItemSummary {
   return {
     id: item.id,
@@ -71,6 +133,8 @@ function toItemSummary(item: {
     fat: item.fat,
     fiber: item.fiber,
     novaGroup: item.novaGroup,
+    initialQuantity: item.initialQuantity,
+    consumedAt: item.consumedAt ? item.consumedAt.toISOString() : null,
   };
 }
 
@@ -102,6 +166,7 @@ export class InventoryService {
         barcode: data.barcode ?? null,
         quantity: data.quantity,
         unit: data.unit as Unit,
+        initialQuantity: data.quantity,
         expiryDate: data.expiryDate ?? null,
         imageUrl: data.imageUrl ?? null,
         nutriscore: data.nutriscore ?? null,
@@ -143,18 +208,69 @@ export class InventoryService {
   }
 
   /**
-   * Consomme une quantité d'un item.
+   * Consomme une quantité d'un item (API historique : quantité libre).
    *
-   * Logique :
-   *   - Si quantité résiduelle > 0 → mise à jour
-   *   - Si quantité résiduelle ≤ 0 → suppression de l'item
-   *   - Si l'item était `isShared` → ajout automatique à la liste de courses active
+   * Depuis Sprint 2 le stock épuisé n'est plus supprimé : `quantity` passe à 0
+   * et `consumedAt` est renseigné (soft-delete). L'item sort du twin et de
+   * l'inventaire actif, mais l'historique et la traçabilité sont conservés.
    */
   async consumeItem(
     itemId: string,
     dto: ConsumeItemDTO,
     userId?: string,
   ): Promise<ConsumeResult> {
+    const result = await this.consumeCore(itemId, dto.quantity, userId);
+
+    return {
+      remainingQuantity: result.remainingQuantity,
+      wasExhausted: result.isFullyConsumed,
+      addedToShoppingList: result.addedToShoppingList,
+    };
+  }
+
+  /**
+   * Consommation progressive (Sprint 2) : `POST /inventory/items/:id/consume-part`.
+   * Renvoie l'item mis à jour (pour la jauge du tooltip 3D) et le drapeau
+   * `isFullyConsumed` qui déclenche la fermeture de la fiche côté front.
+   */
+  async consumeItemQuantity(
+    itemId: string,
+    userId: string | undefined,
+    amount: number,
+  ): Promise<ConsumePartResult> {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError(400, 'La quantité consommée doit être strictement positive.');
+    }
+
+    const result = await this.consumeCore(itemId, amount, userId);
+
+    return {
+      item: {
+        ...toItemSummary(result.item),
+        storageZoneLabel: result.item.storageZone.label,
+      },
+      isFullyConsumed: result.isFullyConsumed,
+      remainingQuantity: result.remainingQuantity,
+      addedToShoppingList: result.addedToShoppingList,
+    };
+  }
+
+  /**
+   * Cœur de la consommation, partagé par les deux routes.
+   * - quantité restante arrondie au centième (colonne Decimal(8,2)) ;
+   * - `consumedAt` posé une seule fois, à l'atteinte de 0 ;
+   * - réassort automatique dans la liste de courses si l'item était partagé.
+   */
+  private async consumeCore(
+    itemId: string,
+    amount: number,
+    userId?: string,
+  ): Promise<{
+    item: Prisma.ItemGetPayload<{ include: { storageZone: true } }>;
+    isFullyConsumed: boolean;
+    remainingQuantity: number;
+    addedToShoppingList: boolean;
+  }> {
     const item = await prisma.item.findUnique({
       where: { id: itemId },
       include: { storageZone: true },
@@ -163,72 +279,55 @@ export class InventoryService {
     if (!item) {
       throw new AppError(404, `Item introuvable : ${itemId}`);
     }
-
-    const currentQty = Number(item.quantity);
-    const newQty = currentQty - dto.quantity;
-
-    if (newQty > 0) {
-      // ── Cas 1 : stock partiel restant ─────────────────────────────────────
-      await prisma.item.update({
-        where: { id: itemId },
-        data: { quantity: new Prisma.Decimal(newQty) },
-      });
-
-      logger.debug(`[Inventory] Consommation partielle : ${item.name} → ${newQty} ${item.unit}`);
-
-      if (userId) {
-        await prisma.activityLog.create({
-          data: {
-            action: 'ITEM_UPDATED',
-            userId,
-            meta: {
-              itemId,
-              itemName: item.name,
-              consumed: dto.quantity,
-              remaining: newQty,
-              unit: item.unit,
-            },
-          },
-        });
-      }
-
-      return {
-        remainingQuantity: newQty,
-        wasExhausted: false,
-        addedToShoppingList: false,
-      };
+    if (item.consumedAt) {
+      throw new AppError(409, 'Cet article est déjà terminé.');
     }
 
-    // ── Cas 2 : stock épuisé ─────────────────────────────────────────────────
-    await prisma.item.delete({ where: { id: itemId } });
+    const currentQty = Number(item.quantity);
+    const remaining = Math.max(0, Math.round((currentQty - amount) * 100) / 100);
+    const isFullyConsumed = remaining <= 0;
 
-    logger.info(`[Inventory] Stock épuisé : ${item.name} — item supprimé`);
+    const updated = await prisma.item.update({
+      where: { id: itemId },
+      data: {
+        quantity: new Prisma.Decimal(remaining),
+        ...(isFullyConsumed ? { consumedAt: new Date() } : {}),
+      },
+      include: { storageZone: true },
+    });
+
+    logger.debug(
+      `[Inventory] Consommation ${isFullyConsumed ? 'TOTALE' : 'partielle'} : ${item.name} → ${remaining} ${item.unit}`,
+    );
 
     if (userId) {
       await prisma.activityLog.create({
         data: {
-          action: 'ITEM_REMOVED',
+          action: isFullyConsumed ? 'ITEM_REMOVED' : 'ITEM_CONSUMED_PARTIAL',
           userId,
           meta: {
             itemId,
             itemName: item.name,
-            zoneName: item.storageZone.label,
-            reason: 'exhausted',
+            amount,
+            remaining,
+            unit: item.unit,
+            ...(isFullyConsumed
+              ? { reason: 'consumed', zoneName: item.storageZone.label }
+              : {}),
           },
         },
       });
     }
 
-    // ── Ajout automatique à la liste de courses (si isShared) ────────────────
     let addedToShoppingList = false;
-
-    if (item.isShared) {
+    if (isFullyConsumed && item.isShared) {
       addedToShoppingList = await this.autoAddToShoppingList(item, userId);
     }
 
     return {
-      remainingQuantity: 0,
-      wasExhausted: true,
+      item: updated,
+      isFullyConsumed,
+      remainingQuantity: remaining,
       addedToShoppingList,
     };
   }
@@ -378,12 +477,171 @@ export class InventoryService {
    * Retourne tous les items proches de leur date d'expiration ou déjà expirés.
    * Triés par urgence (expirés en premier, puis par date croissante).
    */
+  // ── Sprint 3 : ajout rapide d'aliments frais (sans code-barres) ────────────
+
+  /**
+   * Catalogue des presets frais, prêt pour l'UI : catégories, DLC précalculées
+   * (J+n) et libellés de zone.
+   */
+  getFreshPresets(): {
+    categories: FreshCategory[];
+    presets: Array<FreshPreset & { shelfLifeLabel: string; defaultExpiryDate: string }>;
+  } {
+    return {
+      categories: FRESH_CATEGORIES,
+      presets: FRESH_PRESETS.map((preset) => ({
+        ...preset,
+        shelfLifeLabel: `J+${preset.shelfLifeDays}`,
+        defaultExpiryDate: toIsoDate(localDatePlusDays(new Date(), preset.shelfLifeDays)),
+      })),
+    };
+  }
+
+  /**
+   * Ajout rapide d'un aliment frais :
+   * - un preset fournit nom, macros, unité, durée sanitaire et zone conseillée ;
+   * - la zone est résolue automatiquement (meshId conseillé → clayette du
+   *   milieu → n'importe quelle zone frigo) si `storageZoneId` est absent ;
+   * - `expiryDate = aujourd'hui + shelfLifeDays` à minuit local, sauf override.
+   */
+  async quickAddItem(userId: string, dto: QuickAddDTO): Promise<QuickAddResult> {
+    const preset = dto.presetId ? findPreset(dto.presetId) : undefined;
+    if (dto.presetId && !preset) {
+      throw new AppError(400, `Preset inconnu : ${dto.presetId}`);
+    }
+
+    const name = (dto.name ?? preset?.name ?? '').trim();
+    if (!name) {
+      throw new AppError(400, "Le nom de l'aliment est requis.");
+    }
+    if (name.length > 120) {
+      throw new AppError(400, 'Le nom ne peut pas dépasser 120 caractères.');
+    }
+
+    const quantity = dto.quantity ?? preset?.defaultQty ?? 1;
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new AppError(400, 'La quantité doit être strictement positive.');
+    }
+
+    const unit = (dto.unit ?? preset?.unit ?? 'unit') as Unit;
+    if (!Object.values(Unit).includes(unit)) {
+      throw new AppError(400, `Unité invalide : ${unit}`);
+    }
+
+    const shelfLifeDays = dto.shelfLifeDays ?? preset?.shelfLifeDays ?? 5;
+    if (!Number.isInteger(shelfLifeDays) || shelfLifeDays < 0 || shelfLifeDays > 3650) {
+      throw new AppError(400, 'La durée de conservation doit être comprise entre 0 et 3650 jours.');
+    }
+
+    const zone = await this.resolveQuickAddZone(dto.storageZoneId, preset?.zoneMeshId);
+
+    const expiryDate = dto.expiryDate
+      ? parseIsoDate(dto.expiryDate)
+      : localDatePlusDays(new Date(), shelfLifeDays);
+
+    const created = await prisma.item.create({
+      data: {
+        name,
+        brand: null,
+        quantity: new Prisma.Decimal(quantity),
+        initialQuantity: quantity,
+        unit,
+        expiryDate,
+        imageUrl: null,
+        nutriscore: null,
+        isShared: dto.isShared ?? false,
+        calories: preset?.calories ?? null,
+        proteins: preset?.proteins ?? null,
+        storageZoneId: zone.id,
+        ownerId: userId,
+      },
+      include: { storageZone: true },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        action: 'ITEM_ADDED',
+        userId,
+        meta: {
+          itemId: created.id,
+          itemName: created.name,
+          zoneName: zone.label,
+          quantity,
+          unit,
+          quickAdd: true,
+          ...(preset ? { presetId: preset.id, shelfLifeDays } : {}),
+          expiryDate: toIsoDate(expiryDate),
+        },
+      },
+    });
+
+    logger.info(
+      `[Inventory] Ajout rapide : ${created.name} (${quantity} ${unit}) → ${zone.label}, DLC ${toIsoDate(expiryDate)}`,
+    );
+
+    return {
+      item: {
+        ...toItemSummary(created),
+        storageZoneLabel: zone.label,
+      },
+      zoneId: zone.id,
+      zoneLabel: zone.label,
+      zoneMeshId: zone.meshId,
+      expiryDate: toIsoDate(expiryDate),
+      presetApplied: preset
+        ? { id: preset.id, name: preset.name, shelfLifeDays, category: preset.category }
+        : null,
+    };
+  }
+
+  /**
+   * Zone cible d'un ajout rapide : zone explicite → meshId conseillé par le
+   * preset → clayette du milieu → n'importe quelle zone frigo.
+   */
+  private async resolveQuickAddZone(
+    storageZoneId?: string,
+    preferredMeshId?: string,
+  ): Promise<{ id: string; meshId: string; label: string }> {
+    if (storageZoneId) {
+      const explicit = await prisma.storageZone.findUnique({
+        where: { id: storageZoneId },
+        select: { id: true, meshId: true, label: true },
+      });
+      if (!explicit) throw new AppError(400, `Zone de stockage inconnue : ${storageZoneId}`);
+      return explicit;
+    }
+
+    if (preferredMeshId) {
+      const preferred = await prisma.storageZone.findUnique({
+        where: { meshId: preferredMeshId },
+        select: { id: true, meshId: true, label: true },
+      });
+      if (preferred) return preferred;
+    }
+
+    const middle = await prisma.storageZone.findUnique({
+      where: { meshId: 'fridge_shelf_middle' },
+      select: { id: true, meshId: true, label: true },
+    });
+    if (middle) return middle;
+
+    const fallback = await prisma.storageZone.findFirst({
+      where: { type: 'fridge' },
+      orderBy: { positionY: 'asc' },
+      select: { id: true, meshId: true, label: true },
+    });
+    if (fallback) return fallback;
+
+    throw new AppError(409, 'Aucune zone de stockage configurée dans le frigo.');
+  }
+
   async getExpiryAlerts(thresholdDays = EXPIRY_ALERT_THRESHOLD_DAYS): Promise<ExpiryAlert[]> {
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() + thresholdDays);
 
     const items = await prisma.item.findMany({
       where: {
+        consumedAt: null,
         expiryDate: {
           lte: thresholdDate, // ≤ aujourd'hui + threshold
           not: null,
@@ -413,7 +671,8 @@ export class InventoryService {
    * Liste le stock avec pagination et filtres.
    */
   async listItems(query: ListItemsQueryDTO): Promise<PaginatedItems> {
-    const where: Prisma.ItemWhereInput = {};
+    // Les articles terminés (soft-delete) ne font plus partie de l'inventaire actif
+    const where: Prisma.ItemWhereInput = { consumedAt: null };
 
     if (query.storageZoneId) where.storageZoneId = query.storageZoneId;
     if (query.ownerId) where.ownerId = query.ownerId;
@@ -471,7 +730,7 @@ export class InventoryService {
   async getStockIngredients(): Promise<Array<{ name: string; brand: string | null }>> {
     return prisma.item.findMany({
       select: { name: true, brand: true },
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, consumedAt: null },
       distinct: ['name'],
     });
   }

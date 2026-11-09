@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react'
 import { Html } from '@react-three/drei'
-import { Check, Loader2, Package2, X } from 'lucide-react'
+import { Package2, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/api/client'
 import { useFridgeStore, useUIStore } from '@/store'
 import { toasts } from '@/components/ui/ToastProvider'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { findItem } from '@/lib/twinItems'
-import { hapticSuccess } from '@/lib/haptics'
+import { hapticSuccess, hapticTap } from '@/lib/haptics'
 import type { ZoneItemTwin } from '@/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,29 +170,150 @@ function MacroGrid({ item }: { item: ZoneItemTwin }) {
  */
 function useConsumeItem(item: ZoneItemTwin | null) {
   const setFridgeState = useFridgeStore((s) => s.setFridgeState)
+  const setSelectedItemId = useUIStore((s) => s.setSelectedItemId)
   const [isConsuming, setIsConsuming] = useState(false)
 
-  const consume = useCallback(async () => {
-    if (!item || isConsuming) return
-    setIsConsuming(true)
-    try {
-      // Consommer 1 unité : le backend supprime l'item quand le stock tombe à 0
-      await api.consumeItem(item.id, 1)
-      hapticSuccess()
-      toasts.consumed(item.name, 1, item.unit)
-      const fresh = await api.getFridgeState()
-      setFridgeState(fresh)
-    } catch (err) {
-      toasts.error(
-        'Consommation impossible',
-        err instanceof Error ? err.message : 'Erreur serveur',
-      )
-    } finally {
-      setIsConsuming(false)
-    }
-  }, [isConsuming, item, setFridgeState])
+  /**
+   * Consommation progressive (Sprint 2). Le backend renvoie la quantité
+   * restante ; on rafraîchit le twin (sans rechargement ni clignotement) et on
+   * referme la fiche quand l'article est terminé (soft-delete côté API).
+   */
+  const consumeAmount = useCallback(
+    async (amount: number) => {
+      if (!item || isConsuming || !Number.isFinite(amount) || amount <= 0) return
+      setIsConsuming(true)
+      try {
+        const result = await api.consumeItemPart(item.id, amount)
+        toasts.consumed(item.name, amount, item.unit)
 
-  return { isConsuming, consume }
+        const fresh = await api.getFridgeState()
+        setFridgeState(fresh)
+
+        if (result.isFullyConsumed) {
+          hapticSuccess()
+          setSelectedItemId(null)
+        } else {
+          hapticTap()
+        }
+      } catch (err) {
+        toasts.error(
+          'Consommation impossible',
+          err instanceof Error ? err.message : 'Erreur serveur',
+        )
+      } finally {
+        setIsConsuming(false)
+      }
+    },
+    [isConsuming, item, setFridgeState, setSelectedItemId],
+  )
+
+  const consume = useCallback(() => consumeAmount(1), [consumeAmount])
+
+  return { isConsuming, consume, consumeAmount }
+}
+
+// ── Jauge de niveau (Sprint 2) ───────────────────────────────────────────────
+
+/** Libellé court d'unité : `unit` = une dose. */
+const UNIT_LABEL: Record<string, string> = {
+  unit: 'dose',
+  g: 'g',
+  kg: 'kg',
+  ml: 'ml',
+  L: 'L',
+}
+
+/** ratio = clamp(currentQuantity / initialQuantity, 0, 1) */
+function quantityRatio(item: ZoneItemTwin): number {
+  const initial = item.initialQuantity > 0 ? item.initialQuantity : 1
+  return Math.min(1, Math.max(0, item.quantity / initial))
+}
+
+function gaugeColor(percent: number): string {
+  if (percent > 50) return '#00e676'
+  if (percent >= 20) return '#f59e0b'
+  return '#ef4444'
+}
+
+export interface QuantityGaugeProps {
+  item: ZoneItemTwin
+  isConsuming: boolean
+  onConsumeAmount: (amount: number) => void
+  compact?: boolean
+}
+
+/**
+ * Jauge Liquid Glass + décrément rapide : −25 %, −1 dose, Finir.
+ * Les montants dérivent de `initialQuantity` (pas de la quantité courante)
+ * pour que −25 % reste 25 % du contenant d'origine.
+ */
+export function QuantityGauge({ item, isConsuming, onConsumeAmount, compact }: QuantityGaugeProps) {
+  const ratio = quantityRatio(item)
+  const percent = Math.round(ratio * 100)
+  const color = gaugeColor(percent)
+
+  const remaining = Number(item.quantity.toFixed(2))
+  const initial = Number(item.initialQuantity.toFixed(2))
+  const quarter = Math.round(item.initialQuantity * 25) / 100
+  const unitLabel = UNIT_LABEL[item.unit] ?? item.unit
+
+  const buttonClass = clsx(
+    'rounded-lg border border-white/10 bg-white/[0.04] text-slate-300',
+    'font-mono tabular-nums transition-all tap active:scale-95',
+    'hover:border-white/25 hover:text-white disabled:opacity-40',
+    compact ? 'h-9 text-[10px]' : 'h-7 text-[9px]',
+  )
+
+  return (
+    <div className={compact ? 'mt-3' : 'mt-2'}>
+      <div className="flex items-baseline justify-between font-mono text-[9px] tabular-nums">
+        <span className="text-slate-400">
+          {remaining} / {initial} {item.unit}
+        </span>
+        <span style={{ color }}>{percent}% restant</span>
+      </div>
+
+      <div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-[width] duration-300 ease-out"
+          style={{ width: `${percent}%`, background: color, boxShadow: `0 0 8px ${color}80` }}
+        />
+      </div>
+
+      <div className="mt-1.5 grid grid-cols-3 gap-1">
+        <button
+          type="button"
+          onClick={() => onConsumeAmount(quarter)}
+          disabled={isConsuming || remaining <= 0}
+          aria-label={`Consommer 25 % (${quarter} ${item.unit})`}
+          className={buttonClass}
+        >
+          −25%
+        </button>
+        <button
+          type="button"
+          onClick={() => onConsumeAmount(1)}
+          disabled={isConsuming || remaining <= 0}
+          aria-label={`Consommer 1 ${unitLabel}`}
+          className={buttonClass}
+        >
+          −1 {unitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => onConsumeAmount(remaining)}
+          disabled={isConsuming || remaining <= 0}
+          aria-label="Terminer l'article"
+          className={clsx(
+            buttonClass,
+            'border-amber-400/30 text-amber-300 hover:border-amber-400/60 hover:text-amber-200',
+          )}
+        >
+          Finir
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ── Carte desktop (compacte, ancrée au packaging) ─────────────────────────────
@@ -200,11 +321,11 @@ function useConsumeItem(item: ZoneItemTwin | null) {
 export interface ProductTooltipCardProps {
   item: ZoneItemTwin
   isConsuming: boolean
-  onConsume: () => void
+  onConsumeAmount: (amount: number) => void
   onDismiss: () => void
 }
 
-export function ProductTooltipCard({ item, isConsuming, onConsume, onDismiss }: ProductTooltipCardProps) {
+export function ProductTooltipCard({ item, isConsuming, onConsumeAmount, onDismiss }: ProductTooltipCardProps) {
   const expiry = expiryInfo(item)
 
   return (
@@ -250,22 +371,8 @@ export function ProductTooltipCard({ item, isConsuming, onConsume, onDismiss }: 
 
       <MacroGrid item={item} />
 
-      {/* Action rapide */}
-      <button
-        type="button"
-        onClick={onConsume}
-        disabled={isConsuming}
-        className={clsx(
-          'mt-2 w-full py-2 rounded-xl border flex items-center justify-center gap-1.5',
-          'text-[10px] tracking-wider uppercase tap ease-ios',
-          isConsuming
-            ? 'border-white/10 bg-white/5 text-slate-500 cursor-wait'
-            : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20',
-        )}
-      >
-        {isConsuming ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-        {isConsuming ? 'Consommation…' : 'Consommer'}
-      </button>
+      {/* Jauge de niveau + décrément rapide (Sprint 2) */}
+      <QuantityGauge item={item} isConsuming={isConsuming} onConsumeAmount={onConsumeAmount} />
     </div>
   )
 }
@@ -275,11 +382,11 @@ export function ProductTooltipCard({ item, isConsuming, onConsume, onDismiss }: 
 export interface ProductQuickActionCardProps {
   item: ZoneItemTwin
   isConsuming: boolean
-  onConsume: () => void
+  onConsumeAmount: (amount: number) => void
   onDismiss: () => void
 }
 
-export function ProductQuickActionCard({ item, isConsuming, onConsume, onDismiss }: ProductQuickActionCardProps) {
+export function ProductQuickActionCard({ item, isConsuming, onConsumeAmount, onDismiss }: ProductQuickActionCardProps) {
   const expiry = expiryInfo(item)
 
   return (
@@ -331,21 +438,7 @@ export function ProductQuickActionCard({ item, isConsuming, onConsume, onDismiss
 
       <MacroGrid item={item} />
 
-      <button
-        type="button"
-        onClick={onConsume}
-        disabled={isConsuming}
-        className={clsx(
-          'mt-3 w-full h-11 rounded-2xl border flex items-center justify-center gap-2',
-          'text-[11px] tracking-widest uppercase tap ease-ios',
-          isConsuming
-            ? 'border-white/10 bg-white/5 text-slate-500 cursor-wait'
-            : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 active:bg-emerald-400/20',
-        )}
-      >
-        {isConsuming ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-        {isConsuming ? 'Consommation…' : 'Consommer'}
-      </button>
+      <QuantityGauge item={item} isConsuming={isConsuming} onConsumeAmount={onConsumeAmount} compact />
     </div>
   )
 }
@@ -361,7 +454,7 @@ export interface ProductTooltipProps {
 export function ProductTooltip({ item, position }: ProductTooltipProps) {
   const isDesktop = useIsDesktop()
   const setSelectedItemId = useUIStore((s) => s.setSelectedItemId)
-  const { isConsuming, consume } = useConsumeItem(item)
+  const { isConsuming, consumeAmount } = useConsumeItem(item)
 
   const handleDismiss = useCallback(() => setSelectedItemId(null), [setSelectedItemId])
 
@@ -384,7 +477,7 @@ export function ProductTooltip({ item, position }: ProductTooltipProps) {
         <ProductTooltipCard
           item={item}
           isConsuming={isConsuming}
-          onConsume={() => void consume()}
+          onConsumeAmount={(amount) => void consumeAmount(amount)}
           onDismiss={handleDismiss}
         />
       </div>
@@ -403,7 +496,7 @@ export function ProductQuickAction() {
   const isDesktop = useIsDesktop()
   const setSelectedItemId = useUIStore((s) => s.setSelectedItemId)
   const item = useUIStore((s) => findItem(s.fridgeState, s.selectedItemId))
-  const { isConsuming, consume } = useConsumeItem(item)
+  const { isConsuming, consumeAmount } = useConsumeItem(item)
 
   const handleDismiss = useCallback(() => setSelectedItemId(null), [setSelectedItemId])
 
@@ -414,7 +507,7 @@ export function ProductQuickAction() {
       <ProductQuickActionCard
         item={item}
         isConsuming={isConsuming}
-        onConsume={() => void consume()}
+        onConsumeAmount={(amount) => void consumeAmount(amount)}
         onDismiss={handleDismiss}
       />
     </div>

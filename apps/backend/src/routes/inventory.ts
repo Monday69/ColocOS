@@ -29,6 +29,20 @@ router.post('/scan', inventoryController.scan.bind(inventoryController));
 router.post('/items', inventoryController.addItem.bind(inventoryController));
 router.get('/items', inventoryController.listItems.bind(inventoryController));
 router.get('/items/:id', inventoryController.getItem.bind(inventoryController));
+router.get(
+  '/presets',
+  authenticate,
+  inventoryController.getPresets.bind(inventoryController),
+);
+router.post(
+  '/items/quick-add',
+  authenticate,
+  inventoryController.quickAddItem.bind(inventoryController),
+);
+router.post(
+  '/items/:id/consume-part',
+  inventoryController.consumeItemPart.bind(inventoryController),
+);
 router.patch(
   '/items/:id/consume',
   inventoryController.consumeItem.bind(inventoryController),

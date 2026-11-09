@@ -5,6 +5,7 @@ import type {
   ScannedProduct, AddToInventoryPayload, RecipeSuggestion, ProductLookup,
   UserProfile, NutritionTargets, UpdateProfilePayload,
   RoommateProfile,
+  FreshCatalog, QuickAddPayload, QuickAddResult,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -152,6 +153,22 @@ class ApiClient {
   // Inventory
   addToInventory = (data: AddToInventoryPayload) =>
     this.request('/inventory/items', { method: 'POST', body: JSON.stringify(data) });
+
+  /**
+   * Consommation progressive (Sprint 2) : décrémente `amount` et renvoie la
+   * quantité restante, utilisée par la jauge du tooltip 3D.
+   */
+  consumeItemPart = (id: string, amount: number) =>
+    this.request<{
+      item: { id: string; name: string; quantity: number; initialQuantity: number; unit: string };
+      isFullyConsumed: boolean;
+      remainingQuantity: number;
+      addedToShoppingList: boolean;
+    }>(`/inventory/items/${id}/consume-part`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+
   consumeItem = async (id: string, quantity = 1): Promise<void> => {
     await this.request(`/inventory/items/${id}/consume`, {
       method: 'PATCH',
@@ -164,6 +181,17 @@ class ApiClient {
   };
   getStorageZones = () =>
     this.request<Array<{ id: string; meshId: string; label: string; type: string }>>('/fridge/zones');
+
+  // ── Aliments frais (Sprint 3) ──────────────────────────────────────────────
+  /** Catalogue des presets frais (boucherie, primeur, boulangerie). */
+  getFreshPresets = () => this.request<FreshCatalog>('/inventory/presets');
+
+  /** Ajout rapide sans code-barres (preset ou nom libre). */
+  quickAddItem = (payload: QuickAddPayload) =>
+    this.request<QuickAddResult>('/inventory/items/quick-add', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
 
   // Recipes
   getRecipeSuggestions = async (limit = 8): Promise<RecipeSuggestion[]> => {

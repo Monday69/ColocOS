@@ -638,7 +638,7 @@ export class RecipeService {
   /** Items en stock avec le meshId de leur zone (pour l'illumination 3D). */
   private async getStockWithMeshIds(): Promise<StockEntry[]> {
     const rows = await prisma.item.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, consumedAt: null },
       select: { name: true, storageZone: { select: { meshId: true } } },
       orderBy: { createdAt: 'asc' },
     });

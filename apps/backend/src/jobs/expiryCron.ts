@@ -70,6 +70,7 @@ export async function runExpirySweep(now: Date = new Date()): Promise<ExpirySwee
 
   const items = await prisma.item.findMany({
     where: {
+      consumedAt: null,
       expiryDate: { gte: start, lte: end },
       expiryNotified: false,
       isShared: false,

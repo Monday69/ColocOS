@@ -13,6 +13,7 @@ import { toasts } from '@/components/ui/ToastProvider';
 import { ZONE_LAYOUT } from '@/lib/zoneLayout';
 import { BarcodeScanEngine } from '@/lib/barcode/scanEngine';
 import { hapticSuccess } from '@/lib/haptics';
+import { QuickAddDrawer } from '@/components/ui/QuickAddDrawer';
 import type { ScannedProduct } from '@/types';
 
 // =============================================================================
@@ -720,6 +721,9 @@ export function ScannerModule() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Ajout rapide — aliments frais sans code-barres (Sprint 3) */}
+        <QuickAddDrawer />
 
         {/* Loading */}
         <AnimatePresence>

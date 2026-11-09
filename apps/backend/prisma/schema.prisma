@@ -43,6 +43,7 @@ enum ActivityAction {
   ITEM_REMOVED
   ITEM_UPDATED
   ITEM_MOVED
+  ITEM_CONSUMED_PARTIAL
   EXPENSE_CREATED
   EXPENSE_SETTLED
   RECIPE_COOKED
@@ -152,6 +153,11 @@ model Item {
   brand         String?     @db.VarChar(100)
   quantity      Decimal     @db.Decimal(8, 2)
   unit          Unit        @default(unit)
+  /// Quantité au moment de l'ajout au frigo — base de la jauge de niveau.
+  /// `quantity` joue le rôle de quantité COURANTE (source de vérité unique).
+  initialQuantity Float     @default(1) @map("initial_quantity")
+  /// Renseigné quand le stock tombe à 0 : l'item sort du twin (soft-delete)
+  consumedAt    DateTime?   @map("consumed_at") @db.Timestamptz
   expiryDate    DateTime?   @map("expiry_date") @db.Date
   imageUrl      String?     @map("image_url")
   nutriscore    String?     @db.Char(1) // A, B, C, D, E
