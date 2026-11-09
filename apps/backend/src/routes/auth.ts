@@ -32,6 +32,8 @@ const authRateLimiter = rateLimit({
 });
 
 // ── Routes publiques (pas d'auth requise) ─────────────────────────────────────
+router.get('/profiles', authController.profiles.bind(authController));
+
 router.post(
   '/register',
   authRateLimiter,
@@ -44,12 +46,31 @@ router.post(
   authController.login.bind(authController),
 );
 
+// Sélecteur de profils (tablette partagée) — rate-limited comme /login
+router.post(
+  '/login-pin',
+  authRateLimiter,
+  authController.loginPin.bind(authController),
+);
+
+router.post(
+  '/setup-pin',
+  authRateLimiter,
+  authController.setupPin.bind(authController),
+);
+
 router.post(
   '/refresh',
   authController.refresh.bind(authController),
 );
 
 // ── Routes protégées (JWT obligatoire) ────────────────────────────────────────
+router.post(
+  '/me/pin',
+  authenticate,
+  authController.updatePin.bind(authController),
+);
+
 router.get(
   '/me',
   authenticate,

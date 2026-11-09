@@ -34,3 +34,8 @@ export function hapticSuccess(): void {
 export function hapticWarning(): void {
   vibrate([25, 80, 25]);
 }
+
+/** Erreur bloquante (PIN refusé, code non conforme). */
+export function hapticError(): void {
+  vibrate([40, 60, 40]);
+}

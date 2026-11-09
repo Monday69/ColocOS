@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Flame, Loader2, Target, User, X } from 'lucide-react'
+import { Activity, Flame, Loader2, LogOut, Target, User, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/api/client'
+import { useAuth } from '@/store'
 import { toasts } from '@/components/ui/ToastProvider'
-import { hapticSuccess } from '@/lib/haptics'
+import { hapticSuccess, hapticTap } from '@/lib/haptics'
 import type { NutritionGoal, NutritionTargets, UserProfile } from '@/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,8 +133,17 @@ export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
     }
   }
 
-  if (!open) return null
+  /**
+   * Bascule de colocataire sur la tablette partagée : on efface la session
+   * persistée, ce qui fait réapparaître le sélecteur de profils (aucun 401).
+   */
+  const handleSwitchProfile = () => {
+    hapticTap()
+    useAuth.getState().logout()
+    onClose()
+  }
 
+  if (!open) return null
   return createPortal(
     <AnimatePresence>
       <motion.div
@@ -371,6 +381,18 @@ export function UserProfileModal({ open, onClose }: UserProfileModalProps) {
               >
                 {saving && <Loader2 size={12} className="animate-spin" />}
                 {saving ? 'Recalcul…' : 'Enregistrer & recalculer'}
+              </button>
+
+              {/* ── Changement de profil (tablette partagée) ────────────── */}
+              <button
+                type="button"
+                onClick={handleSwitchProfile}
+                className="mt-2 w-full h-10 rounded-2xl border border-white/10 text-slate-400
+                           flex items-center justify-center gap-2 text-[10px] tracking-wider uppercase
+                           tap ease-ios hover:text-white hover:border-white/25 transition-all"
+              >
+                <LogOut size={11} />
+                Changer de profil
               </button>
             </>
           )}

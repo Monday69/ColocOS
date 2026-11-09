@@ -4,9 +4,23 @@ import type {
   FinanceStatus, ShoppingList, AuthUser,
   ScannedProduct, AddToInventoryPayload, RecipeSuggestion, ProductLookup,
   UserProfile, NutritionTargets, UpdateProfilePayload,
+  RoommateProfile,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
+
+/**
+ * Routes d'authentification publiques : un 401 y signifie « identifiants
+ * invalides », PAS « session expirée » — il ne doit donc pas déclencher le
+ * logout global (sinon un mauvais PIN affiche « Session expirée »).
+ */
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/login-pin',
+  '/auth/setup-pin',
+  '/auth/register',
+  '/auth/refresh',
+];
 
 class ApiClient {
   private getToken = () => useStore.getState().token;
@@ -19,7 +33,11 @@ class ApiClient {
       ...options.headers,
     };
     const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-    if (response.status === 401) { useStore.getState().logout(); throw new Error('Session expirée.'); }
+    const isPublicAuth = PUBLIC_AUTH_PATHS.some((publicPath) => path.startsWith(publicPath));
+    if (response.status === 401 && !isPublicAuth) {
+      useStore.getState().logout();
+      throw new Error('Session expirée.');
+    }
     const body = (await response.json()) as ApiResponse<T>;
     if (!response.ok || !body.success) throw new Error(body.error ?? `HTTP ${response.status}`);
     return body.data as T;
@@ -33,6 +51,19 @@ class ApiClient {
   login = (email: string, password: string) => this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   me = () => this.request<AuthUser>('/auth/me');
   getRoommates = () => this.request<AuthUser[]>('/auth/roommates');
+
+  // Sélecteur de profils & code PIN (routes publiques)
+  getProfiles = () => this.request<RoommateProfile[]>('/auth/profiles');
+  loginWithPin = (userId: string, pin: string) =>
+    this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string; expiresIn: number } }>(
+      '/auth/login-pin',
+      { method: 'POST', body: JSON.stringify({ userId, pin }) },
+    );
+  setupPin = (userId: string, pin: string, email?: string) =>
+    this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string; expiresIn: number } }>(
+      '/auth/setup-pin',
+      { method: 'POST', body: JSON.stringify({ userId, pin, ...(email ? { email } : {}) }) },
+    );
 
   // Profil nutritionnel & biométrie
   getProfile = () => this.request<UserProfile>('/users/me/profile');

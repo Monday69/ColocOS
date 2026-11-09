@@ -98,3 +98,31 @@ export const UpdateProfileSchema = z.object({
 );
 
 export type UpdateProfileDTO = z.infer<typeof UpdateProfileSchema>;
+
+// ── Sélecteur de profils & PIN ────────────────────────────────────────────────
+
+const pinSchema = z
+  .string()
+  .regex(/^\d{4}$/, 'Le code PIN doit contenir exactement 4 chiffres');
+
+export const LoginPinSchema = z.object({
+  userId: z.string().uuid('userId doit être un UUID valide'),
+  pin: pinSchema,
+});
+
+export type LoginPinDTO = z.infer<typeof LoginPinSchema>;
+
+export const SetupPinSchema = z.object({
+  userId: z.string().uuid('userId doit être un UUID valide'),
+  pin: pinSchema,
+  email: emailSchema.optional(),
+});
+
+export type SetupPinDTO = z.infer<typeof SetupPinSchema>;
+
+export const UpdatePinSchema = z.object({
+  pin: pinSchema,
+  currentPin: pinSchema.optional(),
+});
+
+export type UpdatePinDTO = z.infer<typeof UpdatePinSchema>;

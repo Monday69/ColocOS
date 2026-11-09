@@ -5,6 +5,9 @@ import {
   LoginSchema,
   RefreshTokenSchema,
   UpdateProfileSchema,
+  LoginPinSchema,
+  SetupPinSchema,
+  UpdatePinSchema,
 } from '../dtos/auth.dto';
 import { AppError } from '../middlewares/errorHandler';
 import { ApiResponse, AuthUser } from '../types';
@@ -119,6 +122,83 @@ export class AuthController {
         data: updated,
         message: 'Profil mis à jour avec succès.',
       } satisfies ApiResponse<AuthUser>);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/auth/profiles
+   * Sélecteur « Qui cuisine aujourd'hui ? » (public, aucune donnée sensible).
+   */
+  async profiles(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const profiles = await authService.listProfiles();
+
+      res.status(200).json({
+        success: true,
+        data: profiles,
+        meta: { total: profiles.length },
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/auth/login-pin
+   * Connexion par code PIN à 4 chiffres (public, rate-limited).
+   */
+  async loginPin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const dto = LoginPinSchema.parse(req.body);
+      const result = await authService.loginWithPin(dto.userId, dto.pin);
+
+      res.status(200).json({
+        success: true,
+        data: { user: result.user, tokens: result.tokens },
+        message: `Bonjour ${result.user.name} !`,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/auth/setup-pin
+   * Premier accès : définit le PIN (et l'email si fourni), connecte aussitôt.
+   */
+  async setupPin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const dto = SetupPinSchema.parse(req.body);
+      const result = await authService.setupPin(dto.userId, dto.pin, dto.email);
+
+      res.status(201).json({
+        success: true,
+        data: { user: result.user, tokens: result.tokens },
+        message: `Code PIN enregistré. Bienvenue ${result.user.name} !`,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/auth/me/pin
+   * Change le code PIN depuis une session authentifiée.
+   */
+  async updatePin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+
+      const dto = UpdatePinSchema.parse(req.body);
+      await authService.updatePin(req.user.id, dto.currentPin ?? null, dto.pin);
+
+      res.status(200).json({
+        success: true,
+        data: { updated: true },
+        message: 'Code PIN mis à jour.',
+      } satisfies ApiResponse);
     } catch (err) {
       next(err);
     }

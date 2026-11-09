@@ -71,6 +71,9 @@ model User {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   badgeId      String?  @unique @map("badge_id") @db.VarChar(100) 
 
+  /// Hash bcrypt du code PIN à 4 chiffres (sélecteur de profils)
+  pinHash       String?  @map("pin_hash")
+
   // ── Profil nutritionnel & biométrie ───────────────────────────────────────
   birthDate     DateTime?     @map("birth_date") @db.Date
   heightCm      Float?        @map("height_cm")

@@ -279,6 +279,15 @@ export interface RecipeSuggestion {
 
 export type NutritionGoal = 'MAINTENANCE' | 'LEAN_BULK' | 'CUT' | 'HIGH_PROTEIN';
 
+/** Profil du sélecteur « Qui cuisine aujourd'hui ? » (données publiques). */
+export interface RoommateProfile {
+  id: string;
+  name: string;
+  colorHex: string;
+  avatarUrl: string | null;
+  hasPin: boolean;
+}
+
 export interface UserProfile {
   id: string;
   name: string;

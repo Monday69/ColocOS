@@ -36,6 +36,25 @@ export interface LoginResult {
   tokens: AuthTokens;
 }
 
+/** Profil affiché dans le sélecteur « Qui cuisine aujourd'hui ? ». */
+export interface ProfileSummary {
+  id: string;
+  name: string;
+  colorHex: string;
+  avatarUrl: string | null;
+  hasPin: boolean;
+}
+
+export interface PinSession {
+  user: AuthUser;
+  tokens: AuthTokens;
+}
+
+const PIN_REGEX = /^\d{4}$/;
+/** Session PIN : longue durée, la tablette de cuisine reste connectée. */
+const PIN_SESSION_SECONDS = 30 * 24 * 60 * 60; // 30 jours
+const PIN_REFRESH_SECONDS = 90 * 24 * 60 * 60; // 90 jours
+
 // ── Helpers privés ────────────────────────────────────────────────────────────
 
 function toAuthUser(user: User): AuthUser {
@@ -276,6 +295,154 @@ export class AuthService {
     });
 
     return users.map(toAuthUser);
+  }
+
+  // ── Sélecteur de profils & code PIN ────────────────────────────────────────
+
+  /**
+   * Liste allégée pour l'écran « Qui cuisine aujourd'hui ? ».
+   * Route publique : aucun email, aucun hash, seulement `hasPin`.
+   */
+  async listProfiles(): Promise<ProfileSummary[]> {
+    const users = await prisma.user.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, colorHex: true, avatarUrl: true, pinHash: true },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      colorHex: user.colorHex,
+      avatarUrl: user.avatarUrl,
+      hasPin: Boolean(user.pinHash),
+    }));
+  }
+
+  /**
+   * Jeton de session longue durée (30 j) : la tablette de cuisine ne redemande
+   * pas le PIN à chaque réveil. Même issuer/audience que l'access token pour
+   * rester accepté par `authenticate`.
+   */
+  private generatePinTokens(user: User): AuthTokens {
+    const payload: JwtPayload = { userId: user.id, email: user.email };
+
+    const accessToken = jwt.sign(payload, env.JWT_SECRET, {
+      expiresIn: PIN_SESSION_SECONDS,
+      issuer: 'colocos-api',
+      audience: 'colocos-app',
+    });
+
+    const refreshToken = jwt.sign({ userId: user.id }, env.JWT_REFRESH_SECRET, {
+      expiresIn: PIN_REFRESH_SECONDS,
+      issuer: 'colocos-api',
+      audience: 'colocos-app',
+    });
+
+    return { accessToken, refreshToken, expiresIn: PIN_SESSION_SECONDS };
+  }
+
+  /**
+   * Connexion par code PIN.
+   *
+   * SÉCURITÉ : message unique « Code PIN incorrect » (pas de distinction entre
+   * profil inconnu / sans PIN / mauvais code) et `bcrypt.compare` exécuté même
+   * sans PIN pour ne pas révéler l'absence de code par le temps de réponse.
+   */
+  async loginWithPin(userId: string, pin: string): Promise<PinSession> {
+    if (!PIN_REGEX.test(pin)) {
+      throw new AppError(400, 'Le code PIN doit contenir exactement 4 chiffres.');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    const pinToCompare = user?.pinHash ?? '$2b$12$invalidhashfortimingprotection000000000000000000000000000';
+    const isPinValid = await bcrypt.compare(pin, pinToCompare);
+
+    if (!user || !user.pinHash || !isPinValid) {
+      logger.warn(`[Auth] PIN refusé pour le profil ${userId}`);
+      throw new AppError(401, 'Code PIN incorrect.');
+    }
+
+    logger.info(`[Auth] Connexion PIN : ${user.name} (id: ${user.id})`);
+
+    return { user: toAuthUser(user), tokens: this.generatePinTokens(user) };
+  }
+
+  /**
+   * Premier accès d'un profil : définit le code PIN (et l'email s'il manque),
+   * puis connecte immédiatement.
+   */
+  async setupPin(userId: string, pin: string, email?: string): Promise<PinSession> {
+    if (!PIN_REGEX.test(pin)) {
+      throw new AppError(400, 'Le code PIN doit contenir exactement 4 chiffres.');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'Profil introuvable.');
+
+    if (user.pinHash) {
+      throw new AppError(409, 'Ce profil a déjà un code PIN. Connecte-toi avec ce code.');
+    }
+
+    let nextEmail = user.email;
+    if (email) {
+      const normalized = email.trim().toLowerCase();
+      if (normalized !== user.email.toLowerCase()) {
+        const exists = await prisma.user.findUnique({
+          where: { email: normalized },
+          select: { id: true },
+        });
+        if (exists && exists.id !== user.id) {
+          throw new AppError(409, 'Cette adresse email est déjà utilisée par un autre profil.');
+        }
+        nextEmail = normalized;
+      }
+    }
+
+    const pinHash = await bcrypt.hash(pin, BCRYPT_ROUNDS);
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        pinHash,
+        ...(nextEmail !== user.email ? { email: nextEmail } : {}),
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        action: 'USER_JOINED',
+        userId: updated.id,
+        meta: { event: 'pin_setup', emailChanged: nextEmail !== user.email },
+      },
+    });
+
+    logger.info(`[Auth] PIN initialisé pour ${updated.name} (id: ${updated.id})`);
+
+    return { user: toAuthUser(updated), tokens: this.generatePinTokens(updated) };
+  }
+
+  /** Définit / change le PIN depuis une session déjà authentifiée. */
+  async updatePin(userId: string, currentPin: string | null, pin: string): Promise<void> {
+    if (!PIN_REGEX.test(pin)) {
+      throw new AppError(400, 'Le code PIN doit contenir exactement 4 chiffres.');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'Profil introuvable.');
+
+    if (user.pinHash) {
+      if (!currentPin) throw new AppError(400, 'Le code PIN actuel est requis.');
+      const valid = await bcrypt.compare(currentPin, user.pinHash);
+      if (!valid) throw new AppError(401, 'Code PIN actuel incorrect.');
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { pinHash: await bcrypt.hash(pin, BCRYPT_ROUNDS) },
+    });
+
+    logger.info(`[Auth] PIN mis à jour pour ${user.name}`);
   }
 }
 
