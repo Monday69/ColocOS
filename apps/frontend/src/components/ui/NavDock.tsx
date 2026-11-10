@@ -36,7 +36,7 @@ function NavTab({
     <button
       onClick={onClick}
       className={clsx(
-        'relative flex-1 flex flex-col items-center px-1 py-0.5 rounded-lg',
+        'relative flex-1 flex flex-col items-center px-1 pt-0.5 pb-0 rounded-lg',
         // Retour tactile immédiat (iOS) + courbe de sortie douce
         'tap ease-ios select-none focus:outline-none',
         isActive ? 'text-cyan-400 font-semibold' : 'text-slate-400/80 hover:text-slate-200',
@@ -136,15 +136,15 @@ export function NavDock() {
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
-                   bg-slate-950/75 backdrop-blur-xl border-t border-white/10
+                   bg-slate-950/45 backdrop-blur-md border-t border-white/10
                    px-3 flex items-center justify-around"
         aria-label="Navigation principale"
-        // Style inline strict : WebKit iOS interprete mal les classes
-        // arbitraires pb-[max(...)] et rognait le fond avant le bord physique
+        // Padding bas fixe : plus aucun env(safe-area-inset-bottom), qui
+        // injectait 34 px de vide noir sous les labels sur iPhone
         style={{
           bottom: 0,
           paddingTop: '6px',
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: '6px',
         }}
       >
         <motion.div
