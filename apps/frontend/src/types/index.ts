@@ -258,6 +258,35 @@ export interface ProductLookup {
 
 export type MealSlot = 'LUNCH' | 'DINNER';
 
+export interface GroceryLine {
+  name: string;
+  quantity: number;
+  unit: string;
+  estimated: boolean;
+  sources: string[];
+}
+
+export interface CoveredGroceryLine extends GroceryLine {
+  stockQuantity: number;
+}
+
+export interface GroceryConsolidation {
+  startDate: string;
+  endDate: string;
+  mealsCount: number;
+  servingsTotal: number;
+  needed: GroceryLine[];
+  covered: CoveredGroceryLine[];
+  unresolvedRecipes: string[];
+}
+
+export interface GenerateGroceriesResult {
+  addedItemsCount: number;
+  coveredItemsCount: number;
+  list: ShoppingList | null;
+  consolidation: GroceryConsolidation;
+}
+
 export interface MealPlanEntry {
   id: string;
   /** YYYY-MM-DD */
@@ -266,6 +295,10 @@ export interface MealPlanEntry {
   recipeId: string;
   recipeName: string;
   cookId: string | null;
+  /** Convives inscrits à table (null = toute la coloc) */
+  attendeeIds?: string[] | null;
+  /** Nombre de convives */
+  servings?: number | null;
   cook: {
     id: string;
     name: string;

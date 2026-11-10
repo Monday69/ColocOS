@@ -376,6 +376,10 @@ model MealPlan {
   recipeName String   @map("recipe_name") @db.VarChar(160)
   cookId     String?  @map("cook_id") @db.Uuid
   cook       User?    @relation("MealPlanCook", fields: [cookId], references: [id], onDelete: SetNull)
+  /// Colocataires présents à table (IDs) — `null` = toute la coloc
+  attendeeIds Json?   @map("attendee_ids")
+  /// Nombre de convives (repli : attendeeIds.length)
+  servings    Int?
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([date, slot])

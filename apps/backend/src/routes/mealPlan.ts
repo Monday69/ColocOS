@@ -16,6 +16,8 @@ router.use(authenticate);
 
 router.get('/', mealPlanController.getRange.bind(mealPlanController));
 router.post('/', mealPlanController.upsert.bind(mealPlanController));
+router.patch('/:id/attendees', mealPlanController.updateAttendees.bind(mealPlanController));
+router.post('/generate-groceries', mealPlanController.generateGroceries.bind(mealPlanController));
 router.delete('/:id', mealPlanController.remove.bind(mealPlanController));
 
 export default router;

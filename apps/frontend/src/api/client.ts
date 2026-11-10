@@ -7,6 +7,7 @@ import type {
   RoommateProfile,
   FreshCatalog, QuickAddPayload, QuickAddResult,
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
+  GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
 } from '@/types';
 
@@ -252,6 +253,20 @@ class ApiClient {
     });
   deleteMealPlan = (id: string) =>
     this.request<{ deleted: boolean }>(`/meal-plan/${id}`, { method: 'DELETE' });
+
+  /** Bloc 2 — convives d'un créneau (ajuste aussi les portions). */
+  updateMealPlanAttendees = (id: string, attendeeIds: string[]) =>
+    this.request<MealPlanEntry>(`/meal-plan/${id}/attendees`, {
+      method: 'PATCH',
+      body: JSON.stringify({ attendeeIds }),
+    });
+
+  /** Bloc 2 — consolidation des courses (`dryRun` = prévisualisation). */
+  generateWeeklyGroceries = (startDate: string, endDate: string, dryRun = false) =>
+    this.request<GenerateGroceriesResult>('/meal-plan/generate-groceries', {
+      method: 'POST',
+      body: JSON.stringify({ startDate, endDate, dryRun }),
+    });
 }
 
 export const api = new ApiClient();

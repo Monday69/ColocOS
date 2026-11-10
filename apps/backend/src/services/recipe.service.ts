@@ -312,6 +312,8 @@ function stripDiacritics(input: string): string {
 }
 
 function normalizeLabel(input: string): string {
+  // `œ`/`æ` ne survivent pas au strip diacritique : on les décompose d'abord
+  input = input.replace(/œ/g, 'oe').replace(/æ/g, 'ae');
   return input
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
