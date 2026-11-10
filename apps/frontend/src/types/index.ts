@@ -199,6 +199,50 @@ export interface ShoppingList {
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 
+/** Ligne envoyée au journal nutritionnel (macros déjà calculées côté client). */
+export interface LoggedMealItemPayload {
+  name: string;
+  barcode?: string | null;
+  grams: number;
+  calories: number;
+  proteins: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface LoggedMealPayload {
+  userId?: string | null;
+  date?: string;
+  items: LoggedMealItemPayload[];
+}
+
+export interface LoggedMealItem extends LoggedMealItemPayload {
+  id: string;
+}
+
+export interface LoggedMeal {
+  id: string;
+  userId: string | null;
+  date: string;
+  createdAt: string;
+  totalCalories: number;
+  totalProteins: number;
+  totalCarbs: number;
+  totalFat: number;
+  items: LoggedMealItem[];
+}
+
+export interface MealDaySummary {
+  date: string;
+  mealCount: number;
+  itemCount: number;
+  totalCalories: number;
+  totalProteins: number;
+  totalCarbs: number;
+  totalFat: number;
+  meals: LoggedMeal[];
+}
+
 export interface ScannedProduct {
   barcode: string;
   name: string;

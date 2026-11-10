@@ -97,6 +97,7 @@ model User {
   favoriteRecipes  FavoriteRecipe[]
   cookedMeals      MealPlan[]       @relation("MealPlanCook")
   customRecipes    CustomRecipe[]
+  meals            Meal[]           @relation("MealOwner")
 
   @@map("users")
 }
@@ -406,4 +407,44 @@ model CustomRecipe {
 
   @@index([createdById])
   @@map("custom_recipes")
+}
+
+// ─────────────────────────────────────────
+// NUTRITION — REPAS ENREGISTRÉS (journal des macros)
+// ─────────────────────────────────────────
+
+model Meal {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  /// Copie de `createdAt` au format YYYY-MM-DD : requêtage journalier direct
+  date          String   @db.Char(10)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  totalCalories Float    @default(0) @map("total_calories")
+  totalProteins Float    @default(0) @map("total_proteins")
+  totalCarbs    Float    @default(0) @map("total_carbs")
+  totalFat      Float    @default(0) @map("total_fat")
+
+  user  User?      @relation("MealOwner", fields: [userId], references: [id], onDelete: SetNull)
+  items MealItem[]
+
+  @@index([userId, date])
+  @@index([date])
+  @@map("meals")
+}
+
+model MealItem {
+  id       String @id @default(uuid()) @db.Uuid
+  mealId   String @map("meal_id") @db.Uuid
+  name     String @db.VarChar(255)
+  barcode  String? @db.VarChar(50)
+  grams    Float
+  calories Float
+  proteins Float
+  carbs    Float
+  fat      Float
+
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@index([mealId])
+  @@map("meal_items")
 }

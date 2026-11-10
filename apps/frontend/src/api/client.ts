@@ -9,6 +9,7 @@ import type {
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
+  LoggedMeal, LoggedMealPayload, MealDaySummary,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -253,6 +254,15 @@ class ApiClient {
     });
   deleteMealPlan = (id: string) =>
     this.request<{ deleted: boolean }>(`/meal-plan/${id}`, { method: 'DELETE' });
+
+  // ── Journal nutritionnel (repas enregistrés) ──────────────────────────────
+  createMeal = (payload: LoggedMealPayload) =>
+    this.request<LoggedMeal>('/meals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  getMealsToday = (date?: string) =>
+    this.request<MealDaySummary>(`/meals/today${date ? `?date=${date}` : ''}`);
 
   /** Bloc 2 — convives d'un créneau (ajuste aussi les portions). */
   updateMealPlanAttendees = (id: string, attendeeIds: string[]) =>

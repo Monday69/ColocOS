@@ -340,6 +340,7 @@ type NutritionMode = 'stock' | 'meal'
 interface MealLine {
   key: string
   name: string
+  barcode?: string | null
   grams: number
   kcal100: number
   prot100: number
@@ -719,6 +720,7 @@ export function ScannerModule() {
   const [mode, setMode] = useState<ScannerMode>('input');
   const [nutritionMode, setNutritionMode] = useState<NutritionMode>('stock');
   const [mealItems, setMealItems] = useState<MealLine[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -745,6 +747,7 @@ export function ScannerModule() {
           {
             key: `${product.barcode}-${Date.now()}`,
             name: product.name,
+            barcode: product.barcode,
             grams: 100,
             ...macros,
           },
@@ -810,14 +813,40 @@ export function ScannerModule() {
     ]);
   }, []);
 
-  const handleValidateMeal = () => {
-    if (mealItems.length === 0) return;
-    hapticSuccess();
-    toasts.info(
-      'Repas enregistré',
-      `${Math.round(mealTotals.prot)} g de protéines • ${Math.round(mealTotals.kcal)} kcal • ${mealItems.length} aliment${mealItems.length > 1 ? 's' : ''}`,
-    );
-    setMealItems([]);
+  const handleValidateMeal = async () => {
+    if (mealItems.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const round1 = (value: number) => Math.round(value * 10) / 10;
+      const payload = {
+        items: mealItems.map((line) => {
+          const factor = line.grams / 100;
+          return {
+            name: line.name,
+            barcode: line.barcode ?? null,
+            grams: line.grams,
+            calories: round1(line.kcal100 * factor),
+            proteins: round1(line.prot100 * factor),
+            carbs: round1(line.carb100 * factor),
+            fat: round1(line.fat100 * factor),
+          };
+        }),
+      };
+
+      await api.createMeal(payload);
+      hapticSuccess();
+      toasts.info(
+        'Repas enregistré',
+        `${Math.round(mealTotals.prot)} g de protéines sauvegardés !`,
+      );
+      setMealItems([]);
+    } catch (err) {
+      // On ne vide pas le panier : la saisie reste disponible pour un nouvel essai
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      toasts.error('Repas non enregistré', message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1040,7 +1069,7 @@ export function ScannerModule() {
                 <button
                   type="button"
                   onClick={() => setMealItems([])}
-                  disabled={mealItems.length === 0}
+                  disabled={mealItems.length === 0 || isSubmitting}
                   className="flex-1 h-9 rounded-xl border border-white/10 bg-white/5 font-sans text-[11px] uppercase tracking-wider text-slate-300 tap transition-colors hover:text-white disabled:opacity-40"
                 >
                   Vider
@@ -1048,11 +1077,11 @@ export function ScannerModule() {
                 <button
                   type="button"
                   onClick={handleValidateMeal}
-                  disabled={mealItems.length === 0}
+                  disabled={mealItems.length === 0 || isSubmitting}
                   className="flex-[1.6] h-9 rounded-xl border border-accent/40 bg-accent/15 font-sans text-[11px] uppercase tracking-wider text-accent tap transition-colors hover:bg-accent/25 disabled:opacity-40 flex items-center justify-center gap-1.5"
                 >
-                  <Check size={13} />
-                  Valider le repas
+                  {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  {isSubmitting ? 'Enregistrement…' : 'Valider le repas'}
                 </button>
               </div>
             </div>
