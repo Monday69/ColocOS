@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Scan, Search, X, Check, ChevronRight,
@@ -334,7 +334,122 @@ function ProductCard({ product, onDismiss }: { product: ScannedProduct; onDismis
 
 type ScanState = 'idle' | 'starting' | 'active' | 'detected' | 'error';
 
-function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) => void; onClose: () => void }) {
+// ── Mode « Composer un repas » ──────────────────────────────────────────────
+type NutritionMode = 'stock' | 'meal'
+
+interface MealLine {
+  key: string
+  name: string
+  grams: number
+  kcal100: number
+  prot100: number
+  carb100: number
+  fat100: number
+  hasMacros: boolean
+}
+
+const MEAL_PORTIONS = [50, 100, 150, 200] as const
+
+/** Extrait les valeurs pour 100 g renvoyées par Open Food Facts. */
+function macrosOf(product: ScannedProduct) {
+  const n = product.nutrition
+  const kcal = n?.calories ?? product.kcalPer100g ?? null
+  return {
+    kcal100: typeof kcal === 'number' ? kcal : 0,
+    prot100: typeof n?.proteins === 'number' ? n.proteins : 0,
+    carb100: typeof n?.carbohydrates === 'number' ? n.carbohydrates : 0,
+    fat100: typeof n?.fat === 'number' ? n.fat : 0,
+    hasMacros: typeof kcal === 'number' || typeof n?.proteins === 'number',
+  }
+}
+
+/** Cartouche de réglage rapide d'un ingrédient du repas. */
+function MealLineCard({
+  line,
+  onGrams,
+  onRemove,
+}: {
+  line: MealLine
+  onGrams: (key: string, grams: number) => void
+  onRemove: (key: string) => void
+}) {
+  const prot = (line.prot100 * line.grams) / 100;
+  const kcal = (line.kcal100 * line.grams) / 100;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+      className="p-3 rounded-2xl border border-white/10 bg-white/[0.03]"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-sans text-[13px] text-white/90 leading-tight min-w-0 break-words">
+          {line.name}
+        </p>
+        <button
+          type="button"
+          onClick={() => onRemove(line.key)}
+          aria-label={`Retirer ${line.name}`}
+          className="p-1 -m-1 flex-shrink-0 text-slate-500 hover:text-health-critical tap transition-colors"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        {MEAL_PORTIONS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onGrams(line.key, p)}
+            className={clsx(
+              'px-2.5 py-1 rounded-lg border font-mono text-[10px] tabular-nums tap transition-colors',
+              line.grams === p
+                ? 'bg-accent/15 text-accent border-accent/40'
+                : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200',
+            )}
+          >
+            {p}g
+          </button>
+        ))}
+        <input
+          type="number"
+          min={1}
+          step={10}
+          value={line.grams}
+          onChange={(e) => onGrams(line.key, Math.max(1, Number(e.target.value) || 1))}
+          className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 font-mono text-[10px] text-white/90 text-center tabular-nums focus:outline-none focus:border-accent/60 [color-scheme:dark]"
+          aria-label={`Quantité en grammes pour ${line.name}`}
+        />
+      </div>
+
+      <p className="mt-1.5 font-mono text-[10px] text-slate-400 tabular-nums">
+        {line.hasMacros ? (
+          <>
+            <span className="text-accent">{prot.toFixed(1)} g prot</span>
+            {' • '}
+            {Math.round(kcal)} kcal
+          </>
+        ) : (
+          'Macros indisponibles pour ce produit'
+        )}
+      </p>
+    </motion.div>
+  );
+}
+
+function CameraScanner({
+  onDetected,
+  onClose,
+  continuous = false,
+}: {
+  onDetected: (barcode: string) => void
+  onClose: () => void
+  /** Mode repas : le viseur reste ouvert, plusieurs produits d'affilée */
+  continuous?: boolean
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const engineRef = useRef<BarcodeScanEngine | null>(null);
   const lastCodeRef = useRef<string | null>(null);
@@ -370,10 +485,19 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (barcode: string) 
     setScanState('detected');
     playDetectBlip();
     hapticSuccess();
-    // Coupe la caméra AVANT de remonter le code (LED éteinte immédiatement)
-    stopEngine();
+    if (!continuous) {
+      // Coupe la caméra AVANT de remonter le code (LED éteinte immédiatement)
+      stopEngine();
+    }
     onDetected(code);
-  }, [onDetected, playDetectBlip, stopEngine]);
+    if (continuous) {
+      // Reprise après 1.5 s : permet d'enchaîner plusieurs produits
+      window.setTimeout(() => {
+        lastCodeRef.current = null;
+        setScanState('active');
+      }, 1500);
+    }
+  }, [onDetected, playDetectBlip, stopEngine, continuous]);
 
   const startCamera = useCallback(async () => {
     if (engineRef.current) return;
@@ -593,6 +717,8 @@ export function ScannerModule() {
   const { scannedProduct, isScanLoading, scanError, setScannedProduct, setScanLoading, setScanError } = useScannerStore();
   const [barcodeInput, setBarcodeInput] = useState('');
   const [mode, setMode] = useState<ScannerMode>('input');
+  const [nutritionMode, setNutritionMode] = useState<NutritionMode>('stock');
+  const [mealItems, setMealItems] = useState<MealLine[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -602,14 +728,33 @@ export function ScannerModule() {
 
   const handleScan = useCallback(async (barcode: string) => {
     if (!barcode.trim()) return;
-    setMode('input');
+    const mealMode = nutritionMode === 'meal';
+    // En mode repas avec viseur ouvert, on garde la caméra active
+    const keepCamera = mealMode && mode === 'camera';
+    if (!keepCamera) setMode('input');
     setScanLoading(true);
     setScanError(null);
-    setScannedProduct(null);
+    if (!mealMode) setScannedProduct(null);
     try {
       const product = await api.scanBarcode(barcode.trim());
-      setScannedProduct(product);
-      setMode('result');
+      if (mealMode) {
+        // Ajout au panier repas (100 g par défaut), sans quitter le viseur
+        const macros = macrosOf(product);
+        setMealItems((prev) => [
+          ...prev,
+          {
+            key: `${product.barcode}-${Date.now()}`,
+            name: product.name,
+            grams: 100,
+            ...macros,
+          },
+        ]);
+        hapticSuccess();
+        setBarcodeInput('');
+      } else {
+        setScannedProduct(product);
+        setMode('result');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erreur';
       if (msg.includes('404') || msg.includes('not found') || msg.includes('reconnu')) {
@@ -619,15 +764,43 @@ export function ScannerModule() {
         setScanError(msg);
         toasts.error('Erreur de scan', msg);
       }
-      setMode('input');
+      if (!keepCamera) setMode('input');
     } finally { setScanLoading(false); }
-  }, [setScannedProduct, setScanLoading, setScanError]);
+  }, [setScannedProduct, setScanLoading, setScanError, nutritionMode, mode]);
 
   const handleDismiss = () => {
     setScannedProduct(null);
     setMode('input');
     setBarcodeInput('');
     setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // Totaux du repas, recalculés à chaque changement de portion
+  const mealTotals = useMemo(
+    () =>
+      mealItems.reduce(
+        (acc, l) => {
+          const f = l.grams / 100;
+          return {
+            kcal: acc.kcal + l.kcal100 * f,
+            prot: acc.prot + l.prot100 * f,
+            carb: acc.carb + l.carb100 * f,
+            fat: acc.fat + l.fat100 * f,
+          };
+        },
+        { kcal: 0, prot: 0, carb: 0, fat: 0 },
+      ),
+    [mealItems],
+  );
+
+  const handleValidateMeal = () => {
+    if (mealItems.length === 0) return;
+    hapticSuccess();
+    toasts.info(
+      'Repas enregistré',
+      `${Math.round(mealTotals.prot)} g de protéines • ${Math.round(mealTotals.kcal)} kcal • ${mealItems.length} aliment${mealItems.length > 1 ? 's' : ''}`,
+    );
+    setMealItems([]);
   };
 
   return (
@@ -638,7 +811,11 @@ export function ScannerModule() {
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
           <h2 className="font-display text-2xl font-black tracking-wider text-white uppercase mt-0.5">
-            Ajouter au <span className="text-accent">stock</span>
+            {nutritionMode === 'meal' ? (
+              <>Composer un <span className="text-accent">repas</span></>
+            ) : (
+              <>Ajouter au <span className="text-accent">stock</span></>
+            )}
           </h2>
         </div>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-surface-border/50"
@@ -647,11 +824,40 @@ export function ScannerModule() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 min-h-0 pb-24">
+      {/* Sélecteur de mode : rangement vs composition de repas */}
+      <div className="flex items-center gap-1 p-1 mb-3 rounded-2xl bg-white/[0.04] border border-white/10 flex-shrink-0">
+        {(['stock', 'meal'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => {
+              setNutritionMode(m);
+              if (m === 'stock') { setMealItems([]); setMode('input'); }
+            }}
+            className={clsx(
+              'flex-1 h-9 rounded-xl font-sans text-[11px] uppercase tracking-wider tap transition-colors',
+              nutritionMode === m
+                ? 'bg-accent/15 text-accent border border-accent/40'
+                : 'text-slate-400 border border-transparent hover:text-slate-200',
+            )}
+          >
+            {m === 'stock' ? 'Ranger au frigo' : 'Composer un repas'}
+          </button>
+        ))}
+      </div>
+
+      <div className={clsx('flex-1 overflow-y-auto space-y-3 min-h-0', nutritionMode === 'meal' ? 'pb-52' : 'pb-24')}>
         {/* Camera scanner */}
         <AnimatePresence>
           {mode === 'camera' && (
-            <CameraScanner onDetected={(code) => { setMode('input'); handleScan(code); }} onClose={() => setMode('input')} />
+            <CameraScanner
+              continuous={nutritionMode === 'meal'}
+              onDetected={(code) => {
+                if (nutritionMode !== 'meal') setMode('input');
+                handleScan(code);
+              }}
+              onClose={() => setMode('input')}
+            />
           )}
         </AnimatePresence>
 
@@ -722,7 +928,38 @@ export function ScannerModule() {
         </AnimatePresence>
 
         {/* Ajout rapide — aliments frais sans code-barres (Sprint 3) */}
-        <QuickAddDrawer />
+        {nutritionMode === 'stock' && <QuickAddDrawer />}
+
+        {/* Panier repas */}
+        {nutritionMode === 'meal' && (
+          <div className="space-y-2">
+            <div className="label-section">
+              REPAS EN COURS {mealItems.length > 0 && `· ${mealItems.length}`}
+            </div>
+            {mealItems.length === 0 ? (
+              <p className="font-sans text-xs text-slate-500 px-1">
+                Scanne un produit ou saisis un code : il s'ajoute au repas sans fermer le viseur.
+              </p>
+            ) : (
+              <AnimatePresence initial={false}>
+                {mealItems.map((line) => (
+                  <MealLineCard
+                    key={line.key}
+                    line={line}
+                    onGrams={(key, grams) =>
+                      setMealItems((prev) =>
+                        prev.map((l) => (l.key === key ? { ...l, grams } : l)),
+                      )
+                    }
+                    onRemove={(key) =>
+                      setMealItems((prev) => prev.filter((l) => l.key !== key))
+                    }
+                  />
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+        )}
 
         {/* Loading */}
         <AnimatePresence>
@@ -738,6 +975,68 @@ export function ScannerModule() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Bandeau de synthèse nutritionnelle (mode repas) */}
+      <AnimatePresence>
+        {nutritionMode === 'meal' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed left-0 right-0 z-30 px-4"
+            style={{ bottom: 'calc(4.25rem + env(safe-area-inset-bottom, 0px))' }}
+          >
+            <div className="rounded-2xl border border-white/10 bg-[#020617]/90 backdrop-blur-xl px-4 py-3 shadow-2xl shadow-black/50">
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div>
+                  <div className="font-mono text-base font-600 text-white tabular-nums leading-none">
+                    {Math.round(mealTotals.kcal)}
+                  </div>
+                  <div className="label-micro mt-1 !text-[8px]">KCAL</div>
+                </div>
+                <div>
+                  <div className="font-mono text-base font-600 tabular-nums leading-none" style={{ color: '#38bdf8' }}>
+                    {Math.round(mealTotals.prot)}
+                  </div>
+                  <div className="label-micro mt-1 !text-[8px]">PROT.</div>
+                </div>
+                <div>
+                  <div className="font-mono text-base font-600 text-white/90 tabular-nums leading-none">
+                    {Math.round(mealTotals.carb)}
+                  </div>
+                  <div className="label-micro mt-1 !text-[8px]">GLUC.</div>
+                </div>
+                <div>
+                  <div className="font-mono text-base font-600 text-white/90 tabular-nums leading-none">
+                    {Math.round(mealTotals.fat)}
+                  </div>
+                  <div className="label-micro mt-1 !text-[8px]">LIP.</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setMealItems([])}
+                  disabled={mealItems.length === 0}
+                  className="flex-1 h-9 rounded-xl border border-white/10 bg-white/5 font-sans text-[11px] uppercase tracking-wider text-slate-300 tap transition-colors hover:text-white disabled:opacity-40"
+                >
+                  Vider
+                </button>
+                <button
+                  type="button"
+                  onClick={handleValidateMeal}
+                  disabled={mealItems.length === 0}
+                  className="flex-[1.6] h-9 rounded-xl border border-accent/40 bg-accent/15 font-sans text-[11px] uppercase tracking-wider text-accent tap transition-colors hover:bg-accent/25 disabled:opacity-40 flex items-center justify-center gap-1.5"
+                >
+                  <Check size={13} />
+                  Valider le repas
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
