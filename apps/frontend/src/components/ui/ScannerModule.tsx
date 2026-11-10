@@ -349,7 +349,76 @@ interface MealLine {
   hasMacros: boolean
 }
 
-const MEAL_PORTIONS = [50, 100, 150, 200] as const
+interface PortionPreset {
+  /** Libellé tactile (cuillère, poignée, pot…) */
+  label: string
+  grams: number
+}
+
+interface PortionPlan {
+  presets: PortionPreset[]
+  /** Quantité appliquée à l'ajout dans le panier */
+  defaultGrams: number
+}
+
+/** Minuscules + diacritiques retirés : « Gruyère » → « gruyere ». */
+function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+const CLASSIC_PLAN: PortionPlan = {
+  presets: [
+    { label: '50 g', grams: 50 },
+    { label: '100 g', grams: 100 },
+    { label: '150 g', grams: 150 },
+    { label: '200 g', grams: 200 },
+  ],
+  defaultGrams: 100,
+}
+
+const SPOON_PLAN: PortionPlan = {
+  presets: [
+    { label: '1 c.à.c', grams: 5 },
+    { label: '1 c.à.s', grams: 15 },
+    { label: '2 c.à.s', grams: 30 },
+  ],
+  defaultGrams: 15,
+}
+
+const HANDFUL_PLAN: PortionPlan = {
+  presets: [
+    { label: 'Pincée', grams: 10 },
+    { label: 'Poignée', grams: 30 },
+    { label: '50 g', grams: 50 },
+  ],
+  defaultGrams: 30,
+}
+
+const POT_PLAN: PortionPlan = {
+  presets: [
+    { label: '1 c.à.s', grams: 40 },
+    { label: 'Pot 100 g', grams: 100 },
+    { label: 'Pot 140 g', grams: 140 },
+    { label: '200 g', grams: 200 },
+  ],
+  defaultGrams: 140,
+}
+
+/** Règles ordonnées : la première qui matche le nom du produit gagne. */
+const PORTION_RULES: Array<{ pattern: RegExp; plan: PortionPlan }> = [
+  { pattern: /pesto|sauce|huile|mayo|beurre|ketchup|moutarde/, plan: SPOON_PLAN },
+  { pattern: /gruyere|rape|parmesan|emmental|mozzarella|graines/, plan: HANDFUL_PLAN },
+  { pattern: /skyr|yaourt|yogurt|fromage blanc|faisselle|quark/, plan: POT_PLAN },
+]
+
+/** Choisit les portions usuelles d'après le nom de l'aliment. */
+function portionPlanFor(name: string): PortionPlan {
+  const normalized = normalizeName(name)
+  return PORTION_RULES.find((rule) => rule.pattern.test(normalized))?.plan ?? CLASSIC_PLAN
+}
 
 /** Extrait les valeurs pour 100 g renvoyées par Open Food Facts. */
 function macrosOf(product: ScannedProduct) {
@@ -400,19 +469,19 @@ function MealLineCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
-        {MEAL_PORTIONS.map((p) => (
+        {portionPlanFor(line.name).presets.map((preset) => (
           <button
-            key={p}
+            key={`${preset.label}-${preset.grams}`}
             type="button"
-            onClick={() => onGrams(line.key, p)}
+            onClick={() => onGrams(line.key, preset.grams)}
             className={clsx(
-              'px-2.5 py-1 rounded-lg border font-mono text-[10px] tabular-nums tap transition-colors',
-              line.grams === p
+              'text-xs px-2 py-1 rounded-md border tap active:scale-95 transition-colors tabular-nums',
+              line.grams === preset.grams
                 ? 'bg-accent/15 text-accent border-accent/40'
-                : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200',
+                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/5',
             )}
           >
-            {p}g
+            {preset.label}
           </button>
         ))}
         <input
@@ -742,13 +811,14 @@ export function ScannerModule() {
       if (mealMode) {
         // Ajout au panier repas (100 g par défaut), sans quitter le viseur
         const macros = macrosOf(product);
+        const defaultGrams = portionPlanFor(product.name).defaultGrams;
         setMealItems((prev) => [
           ...prev,
           {
             key: `${product.barcode}-${Date.now()}`,
             name: product.name,
             barcode: product.barcode,
-            grams: 100,
+            grams: defaultGrams,
             ...macros,
           },
         ]);
