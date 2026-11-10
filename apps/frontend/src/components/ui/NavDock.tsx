@@ -36,7 +36,7 @@ function NavTab({
     <button
       onClick={onClick}
       className={clsx(
-        'relative flex flex-col items-center px-3 py-0.5 rounded-lg',
+        'relative flex-1 flex flex-col items-center px-1 py-0.5 rounded-lg',
         // Retour tactile immédiat (iOS) + courbe de sortie douce
         'tap ease-ios select-none focus:outline-none',
         isActive ? 'text-cyan-400 font-semibold' : 'text-slate-400/80 hover:text-slate-200',
@@ -87,13 +87,8 @@ export function NavDock() {
   const debtCount      = financeStatus?.simplifiedDebts.length ?? null;
   const pendingItems   = shoppingList?.items.filter(i => i.status === 'pending').length ?? null;
 
+  // Ordre valide : FRIGO au centre, encadre par Finance/Courses et Scan/Recettes
   const navItems: NavItem[] = [
-    {
-      id: 'fridge',
-      label: 'FRIGO',
-      icon: <Refrigerator size={23} strokeWidth={1.5} />,
-      badgeCount: criticalCount > 0 ? criticalCount : null,
-    },
     {
       id: 'finance',
       label: 'FINANCE',
@@ -107,6 +102,12 @@ export function NavDock() {
       badgeCount: pendingItems,
     },
     {
+      id: 'fridge',
+      label: 'FRIGO',
+      icon: <Refrigerator size={23} strokeWidth={1.5} />,
+      badgeCount: criticalCount > 0 ? criticalCount : null,
+    },
+    {
       id: 'scanner',
       label: 'SCAN',
       icon: <Scan size={23} strokeWidth={1.5} />,
@@ -117,6 +118,7 @@ export function NavDock() {
       icon: <ChefHat size={23} strokeWidth={1.5} />,
     },
   ];
+
 
   const handleTabClick = (id: AppModule) => {
     hapticTap();
