@@ -135,7 +135,7 @@ export function NavDock() {
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
                    bg-slate-950/45 backdrop-blur-md border-t border-white/10
-                   pt-1 pb-[max(8px,calc(env(safe-area-inset-bottom,0px)-16px))] px-3"
+                   pt-1 pb-[max(4px,calc(env(safe-area-inset-bottom,0px)-28px))] px-3"
         aria-label="Navigation principale"
       >
         <motion.div

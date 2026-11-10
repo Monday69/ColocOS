@@ -637,7 +637,6 @@ export function ScannerModule() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
-          <div className="label-section">SCANNER</div>
           <h2 className="font-display text-2xl font-black tracking-wider text-white uppercase mt-0.5">
             Ajouter au <span className="text-accent">stock</span>
           </h2>
