@@ -10,7 +10,7 @@ async function main() {
   // Modifie simplement les prénoms et emails ici :
   const roommates = [
     { name: 'Mattéo Bombrun',  email: 'matteo@colocos.local',  colorHex: '#3B82F6' },
-    { name: 'Mattéo Begeron',  email: 'pote1@colocos.local',   colorHex: '#10B981' },
+    { name: 'Mattéo Bergeron', email: 'pote1@colocos.local',   colorHex: '#10B981' },
     { name: 'Tom Valette',  email: 'pote2@colocos.local',   colorHex: '#F59E0B' },
     { name: 'Aymeric Bonnans',  email: 'pote3@colocos.local',   colorHex: '#EC4899' },
     { name: 'Mathys Gerrer',  email: 'pote4@colocos.local',   colorHex: '#8B5CF6' },

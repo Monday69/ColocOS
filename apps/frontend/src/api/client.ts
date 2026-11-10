@@ -7,6 +7,7 @@ import type {
   RoommateProfile,
   FreshCatalog, QuickAddPayload, QuickAddResult,
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
+  ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -217,6 +218,25 @@ class ApiClient {
   };
   toggleFavoriteRecipe = (recipeId: string) =>
     this.request<{ isFavorite: boolean }>(`/recipes/${recipeId}/favorite`, { method: 'POST' });
+
+  // ── Bloc 1 : import par URL & recettes personnalisées ─────────────────────
+  /** Scrape une page (JSON-LD) et renvoie une prévisualisation non persistée. */
+  extractRecipeFromUrl = (url: string) =>
+    this.request<ScrapedRecipePreview>('/recipes/extract-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+
+  getCustomRecipes = () => this.request<CustomRecipe[]>('/recipes/custom');
+
+  createCustomRecipe = (payload: CreateCustomRecipePayload) =>
+    this.request<CustomRecipe>('/recipes/custom', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+  deleteCustomRecipe = (id: string) =>
+    this.request<{ deleted: boolean }>(`/recipes/custom/${id}`, { method: 'DELETE' });
 
   // ── Semainier (Sprint 4) ───────────────────────────────────────────────────
   getMealPlan = async (start: string, end: string): Promise<MealPlanEntry[]> => {

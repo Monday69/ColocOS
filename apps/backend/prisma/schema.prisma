@@ -96,6 +96,7 @@ model User {
   pushSubscriptions PushSubscription[]
   favoriteRecipes  FavoriteRecipe[]
   cookedMeals      MealPlan[]       @relation("MealPlanCook")
+  customRecipes    CustomRecipe[]
 
   @@map("users")
 }
@@ -380,4 +381,25 @@ model MealPlan {
   @@unique([date, slot])
   @@index([date])
   @@map("meal_plans")
+}
+
+/// Recette importée d'une page web (JSON-LD) ou saisie manuellement
+model CustomRecipe {
+  id           String   @id @default(uuid()) @db.Uuid
+  title        String   @db.VarChar(200)
+  sourceUrl    String?  @map("source_url") @db.VarChar(500)
+  imageUrl     String?  @map("image_url") @db.VarChar(500)
+  prepTimeMin  Int?     @map("prep_time_min")
+  cookTimeMin  Int?     @map("cook_time_min")
+  servings     Int      @default(4)
+  /// Tableau de chaînes : ["Étape 1", "Étape 2"]
+  instructions Json
+  /// Tableau d'objets : [{ name, quantity, unit }]
+  ingredients  Json
+  createdById  String   @map("created_by_id") @db.Uuid
+  createdBy    User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdById])
+  @@map("custom_recipes")
 }

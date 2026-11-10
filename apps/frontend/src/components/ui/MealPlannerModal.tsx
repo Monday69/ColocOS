@@ -180,14 +180,14 @@ export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlan
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pt-[112px] sm:pt-0">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
-        className="relative w-full sm:max-w-lg max-h-[88vh] flex flex-col rounded-t-3xl sm:rounded-3xl
+        className="relative w-full sm:max-w-lg max-h-full sm:max-h-[84vh] flex flex-col rounded-t-3xl sm:rounded-3xl
                    border border-white/12 bg-[#0d1014]/95 overflow-hidden"
         style={{ backdropFilter: 'blur(28px) saturate(1.4)' }}
       >
@@ -275,7 +275,7 @@ export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlan
                                     backgroundColor: `${meal.cook.colorHex}18`,
                                   }}
                                 >
-                                  {meal.cook.name.split(' ')[0]}
+                                  {meal.cook.name.split(' ').slice(-1)[0]}
                                 </span>
                               )}
                               <button
@@ -360,7 +360,7 @@ export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlan
                               : undefined
                           }
                         >
-                          {mate.name.split(' ')[0]}
+                          {mate.name.split(' ').slice(-1)[0]}
                         </button>
                       )
                     })}

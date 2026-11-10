@@ -15,11 +15,13 @@ import {
   Heart,
   Search,
   CalendarDays,
+  Link2,
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '@/api/client';
 import { MealPlannerModal, quickSlotOptions } from '@/components/ui/MealPlannerModal';
+import { RecipeImportModal } from '@/components/ui/RecipeImportModal';
 import { useRecipesStore, useBridge, useShoppingStore, useStore } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
@@ -242,6 +244,35 @@ function RecipeCard({
           {recipe.title}
         </h3>
 
+        {/* Badge « Match Coloc » (Bloc 1) : validée par ≥ 2 colocataires */}
+        {recipe.isColocMatch && (recipe.favoritedByUsers?.length ?? 0) >= 2 && (
+          <div
+            className="flex items-center gap-1 px-1.5 py-[2px] rounded-full border min-w-0"
+            style={{
+              borderColor: 'rgba(251,113,133,0.35)',
+              background: 'rgba(251,113,133,0.10)',
+            }}
+          >
+            <span className="text-[9px] leading-none">🔥</span>
+            <span className="flex-1 min-w-0 truncate font-sans text-[8px] text-rose-200">
+              Validé par{' '}
+              {(recipe.favoritedByUsers ?? [])
+                .slice(0, 2)
+                .map((user) => user.name.split(' ').slice(-1)[0])
+                .join(' & ')}
+            </span>
+            <span className="flex items-center gap-0.5 flex-shrink-0">
+              {(recipe.favoritedByUsers ?? []).slice(0, 2).map((user) => (
+                <span
+                  key={user.id}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: user.colorHex, boxShadow: `0 0 5px ${user.colorHex}` }}
+                />
+              ))}
+            </span>
+          </div>
+        )}
+
         <MatchScoreBar score={recipe.matchScore} />
 
         {/* Ingrédients en stock */}
@@ -390,6 +421,7 @@ function HubToolbar({
   chips,
   onToggleChip,
   onOpenPlanner,
+  onOpenImport,
   onRefresh,
   isRefreshing,
 }: {
@@ -398,6 +430,7 @@ function HubToolbar({
   chips: Set<ChipId>;
   onToggleChip: (id: ChipId) => void;
   onOpenPlanner: () => void;
+  onOpenImport: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
 }) {
@@ -453,6 +486,17 @@ function HubToolbar({
           Semainier
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={onOpenImport}
+        className="w-full h-8 rounded-xl border border-white/10 bg-white/[0.04] text-slate-300
+                   font-sans text-[10px] tracking-wider uppercase flex items-center justify-center gap-1.5
+                   tap hover:border-cyan-400/40 hover:text-cyan-300 transition-colors"
+      >
+        <Link2 size={11} />
+        Importer par lien
+      </button>
 
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
         {CHIPS.map((chip) => {
@@ -553,6 +597,7 @@ export function RecipeModule() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [planTarget, setPlanTarget] = useState<RecipeSuggestion | null>(null);
   const { setHighlightedMeshIds } = useBridge();
   const setShoppingList = useShoppingStore((s) => s.setShoppingList);
@@ -699,6 +744,7 @@ export function RecipeModule() {
         chips={chips}
         onToggleChip={handleToggleChip}
         onOpenPlanner={() => { hapticTap(); setPlannerOpen(true); }}
+        onOpenImport={() => { hapticTap(); setImportOpen(true); }}
         onRefresh={() => void fetchRecipes()}
         isRefreshing={isRecipesLoading}
       />
@@ -795,6 +841,13 @@ export function RecipeModule() {
           </div>
         </div>
       )}
+
+      {/* Import par URL (Bloc 1) */}
+      <RecipeImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSaved={() => void fetchRecipes()}
+      />
 
       {/* Semainier */}
       <MealPlannerModal

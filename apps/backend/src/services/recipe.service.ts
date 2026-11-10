@@ -84,6 +84,43 @@ export interface RecipeSuggestionExtended extends RecipeSuggestion {
   isFullyAvailable?: boolean;
   isAlmostAvailable?: boolean;
   missingIngredientCount?: number;
+  /** Bloc 1 — recette personnalisée (importée ou saisie) */
+  isCustom?: boolean;
+  /** Bloc 1 — colocataires ayant mis la recette en favori */
+  favoritedByUsers?: Array<{ id: string; name: string; colorHex: string }>;
+  /** Bloc 1 — au moins deux colocataires différents l'ont validée */
+  isColocMatch?: boolean;
+}
+
+export interface CustomIngredient {
+  name: string;
+  quantity?: number | null;
+  unit?: string | null;
+}
+
+export interface CustomRecipeSummary {
+  id: string;
+  title: string;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  servings: number;
+  instructions: string[];
+  ingredients: CustomIngredient[];
+  createdAt: string;
+  createdBy: { id: string; name: string; colorHex: string };
+}
+
+export interface CreateCustomRecipeInput {
+  title: string;
+  sourceUrl?: string | null;
+  imageUrl?: string | null;
+  prepTimeMin?: number | null;
+  cookTimeMin?: number | null;
+  servings?: number;
+  instructions: string[];
+  ingredients: CustomIngredient[];
 }
 
 /** Filtres avancés du hub Recettes. */
@@ -301,17 +338,29 @@ function findStockMatch(required: string, stock: StockEntry[]): StockEntry | nul
   const requiredLabel = requiredTokens.join(' ');
   if (requiredTokens.length === 0) return null;
 
+  /**
+   * Garde-fou pour les mots très courts (« sel », « riz », « ail ») : un token
+   * unique de ≤ 4 lettres ne doit matcher que s'il ouvre le libellé du stock
+   * ou le compose entièrement. Sinon « sel » validerait
+   * « Sauce soja teneur réduite en sel » — faux positif constaté à l'import.
+   */
+  const strictHead = requiredTokens.length === 1 && requiredLabel.length <= 4;
+
   // 1. Correspondance stricte des mots-clés
   for (const entry of stock) {
     const stockTokens = toTokens(entry.name);
-    if (requiredTokens.every((token) => stockTokens.includes(token))) return entry;
+    if (!requiredTokens.every((token) => stockTokens.includes(token))) continue;
+    if (strictHead && stockTokens[0] !== requiredLabel) continue;
+    return entry;
   }
 
   // 2. Repli : inclusion de chaîne normalisée (gère « flocons avoine » vs
   //    « Flocons d'avoine », où la préposition casse le découpage)
-  for (const entry of stock) {
-    const stockLabel = toTokens(entry.name).join(' ');
-    if (stockLabel.includes(requiredLabel)) return entry;
+  if (!strictHead) {
+    for (const entry of stock) {
+      const stockLabel = toTokens(entry.name).join(' ');
+      if (stockLabel.includes(requiredLabel)) return entry;
+    }
   }
 
   return null;
@@ -332,6 +381,170 @@ export class RecipeService {
    * Spoonacular (ou en cas d'échec réseau/quota), le catalogue local prend le
    * relais avec le même format de réponse.
    */
+  // ── Recettes personnalisées (Bloc 1) ───────────────────────────────────────
+
+  /** Recettes personnalisées de la coloc, du plus récent au plus ancien. */
+  async listCustomRecipes(): Promise<CustomRecipeSummary[]> {
+    const rows = await prisma.customRecipe.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { id: true, name: true, colorHex: true } } },
+    });
+
+    return rows.map((row) => this.toCustomSummary(row));
+  }
+
+  /** Enregistre une recette importée (JSON-LD) ou saisie manuellement. */
+  async createCustomRecipe(
+    userId: string,
+    input: CreateCustomRecipeInput,
+  ): Promise<CustomRecipeSummary> {
+    const title = input.title.trim();
+    if (!title) throw new AppError(400, 'Le titre de la recette est requis.');
+
+    const ingredients = input.ingredients
+      .map((ingredient) => ({
+        name: ingredient.name.trim(),
+        quantity: ingredient.quantity ?? null,
+        unit: ingredient.unit ?? null,
+      }))
+      .filter((ingredient) => ingredient.name.length > 0);
+
+    if (ingredients.length === 0) {
+      throw new AppError(400, 'Au moins un ingrédient est requis.');
+    }
+
+    const instructions = input.instructions
+      .map((step) => step.trim())
+      .filter((step) => step.length > 0);
+
+    const created = await prisma.customRecipe.create({
+      data: {
+        title: title.slice(0, 200),
+        sourceUrl: input.sourceUrl?.slice(0, 500) ?? null,
+        imageUrl: input.imageUrl?.slice(0, 500) ?? null,
+        prepTimeMin: input.prepTimeMin ?? null,
+        cookTimeMin: input.cookTimeMin ?? null,
+        servings: input.servings ?? 4,
+        instructions,
+        ingredients,
+        createdById: userId,
+      },
+      include: { createdBy: { select: { id: true, name: true, colorHex: true } } },
+    });
+
+    logger.info(`[Recipes] Recette personnalisée créée : ${created.title} (${ingredients.length} ingrédients)`);
+
+    return this.toCustomSummary(created);
+  }
+
+  /** Supprime une recette personnalisée (créateur uniquement). */
+  async deleteCustomRecipe(id: string, userId: string): Promise<{ deleted: boolean }> {
+    const existing = await prisma.customRecipe.findUnique({
+      where: { id },
+      select: { id: true, createdById: true, title: true },
+    });
+
+    if (!existing) throw new AppError(404, `Recette introuvable : ${id}`);
+    if (existing.createdById !== userId) {
+      throw new AppError(403, 'Seul le créateur peut supprimer cette recette.');
+    }
+
+    await prisma.customRecipe.delete({ where: { id } });
+    logger.info(`[Recipes] Recette personnalisée supprimée : ${existing.title}`);
+
+    return { deleted: true };
+  }
+
+  private toCustomSummary(row: {
+    id: string;
+    title: string;
+    sourceUrl: string | null;
+    imageUrl: string | null;
+    prepTimeMin: number | null;
+    cookTimeMin: number | null;
+    servings: number;
+    instructions: unknown;
+    ingredients: unknown;
+    createdAt: Date;
+    createdBy: { id: string; name: string; colorHex: string };
+  }): CustomRecipeSummary {
+    return {
+      id: row.id,
+      title: row.title,
+      sourceUrl: row.sourceUrl,
+      imageUrl: row.imageUrl,
+      prepTimeMin: row.prepTimeMin,
+      cookTimeMin: row.cookTimeMin,
+      servings: row.servings,
+      instructions: Array.isArray(row.instructions) ? (row.instructions as string[]) : [],
+      ingredients: Array.isArray(row.ingredients)
+        ? (row.ingredients as CustomIngredient[])
+        : [],
+      createdAt: row.createdAt.toISOString(),
+      createdBy: row.createdBy,
+    };
+  }
+
+  /**
+   * Convertit une recette personnalisée en suggestion du hub : le matching
+   * ingrédients ↔ stock utilise le même moteur que le catalogue local.
+   */
+  private customToSuggestion(
+    row: {
+      id: string;
+      title: string;
+      sourceUrl: string | null;
+      imageUrl: string | null;
+      prepTimeMin: number | null;
+      cookTimeMin: number | null;
+      ingredients: unknown;
+    },
+    stock: StockEntry[],
+  ): RecipeSuggestionExtended | null {
+    const rawIngredients = Array.isArray(row.ingredients)
+      ? (row.ingredients as CustomIngredient[])
+      : [];
+    const names = rawIngredients
+      .map((ingredient) => (typeof ingredient?.name === 'string' ? ingredient.name.trim() : ''))
+      .filter((name) => name.length > 0);
+
+    if (names.length === 0) return null;
+
+    const used: Array<{ name: string; meshId: string | null }> = [];
+    const missed: string[] = [];
+
+    for (const name of names) {
+      const match = findStockMatch(name, stock);
+      if (match) used.push({ name: match.name, meshId: match.meshId });
+      else missed.push(name);
+    }
+
+    const totalIngredients = names.length;
+    const matchScore = totalIngredients > 0 ? used.length / totalIngredients : 0;
+    const totalTime =
+      row.prepTimeMin !== null || row.cookTimeMin !== null
+        ? (row.prepTimeMin ?? 0) + (row.cookTimeMin ?? 0)
+        : null;
+
+    return {
+      id: `custom:${row.id}`,
+      title: row.title,
+      imageUrl: row.imageUrl,
+      sourceUrl: row.sourceUrl ?? '',
+      prepTimeMin: totalTime,
+      readyInMinutes: totalTime ?? undefined,
+      matchScore: Math.round(matchScore * 100) / 100,
+      missingIngredients: missed,
+      usedIngredients: used.map((entry) => entry.name),
+      usedIngredientRefs: used,
+      totalIngredients,
+      likes: 0,
+      proteinGrams: null,
+      availableInMeshIds: this.uniqueMeshIds(used.map((entry) => entry.meshId)),
+      isCustom: true,
+    };
+  }
+
   /**
    * Suggestions enrichies pour le hub Recettes (Sprint 4) :
    * favoris du colocataire connecté, faisabilité et filtres avancés.
@@ -340,7 +553,17 @@ export class RecipeService {
     options: { userId?: string; filters?: RecipeFilters } = {},
   ): Promise<SuggestRecipesResult> {
     const base = await this.computeSuggestions();
-    return this.applyUserLayer(base, options.userId, options.filters);
+    // Bloc 1 : les recettes personnalisées de la coloc rejoignent le hub
+    const customRows = await prisma.customRecipe.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    });
+    const merged =
+      customRows.length > 0
+        ? this.withCustomRecipes(base, customRows, await this.getStockWithMeshIds())
+        : base;
+
+    return this.applyUserLayer(merged, options.userId, options.filters);
   }
 
   /** Identifiants des recettes favorites d'un utilisateur. */
@@ -370,6 +593,32 @@ export class RecipeService {
     return { isFavorite: true };
   }
 
+  /** Ajoute les recettes personnalisées aux suggestions (Bloc 1). */
+  private withCustomRecipes(
+    result: SuggestRecipesResult,
+    customRows: Array<{
+      id: string;
+      title: string;
+      sourceUrl: string | null;
+      imageUrl: string | null;
+      prepTimeMin: number | null;
+      cookTimeMin: number | null;
+      ingredients: unknown;
+    }>,
+    stock: StockEntry[],
+  ): SuggestRecipesResult {
+    if (customRows.length === 0) return result;
+
+    const customSuggestions = customRows
+      .map((row) => this.customToSuggestion(row, stock))
+      .filter((entry): entry is RecipeSuggestionExtended => entry !== null);
+
+    return {
+      ...result,
+      suggestions: [...customSuggestions, ...result.suggestions],
+    };
+  }
+
   /**
    * Couche « utilisateur » : favoris, faisabilité, filtres et tri intelligent
    * (100 % réalisable → à 1 ingrédient près → le reste).
@@ -380,17 +629,34 @@ export class RecipeService {
     filters?: RecipeFilters,
   ): Promise<SuggestRecipesResult> {
     const favoriteIds = userId ? await this.getFavoriteRecipeIds(userId) : new Set<string>();
+
+    // Bloc 1 — qui a validé quoi (badge « Match Coloc »)
+    const favoriteRows = await prisma.favoriteRecipe.findMany({
+      select: {
+        recipeId: true,
+        user: { select: { id: true, name: true, colorHex: true } },
+      },
+    });
+    const favoritedByRecipe = new Map<string, Array<{ id: string; name: string; colorHex: string }>>();
+    for (const row of favoriteRows) {
+      const list = favoritedByRecipe.get(row.recipeId) ?? [];
+      list.push(row.user);
+      favoritedByRecipe.set(row.recipeId, list);
+    }
     // Recherche insensible à la casse ET aux accents (« pates » trouve « Pâtes »)
     const search = filters?.search ? stripDiacritics(filters.search.trim().toLowerCase()) : undefined;
 
     let suggestions: RecipeSuggestionExtended[] = result.suggestions.map((suggestion) => {
       const missing = suggestion.missingIngredients.length;
+      const favoritedByUsers = favoritedByRecipe.get(suggestion.id) ?? [];
       return {
         ...suggestion,
         isFavorite: favoriteIds.has(suggestion.id),
         isFullyAvailable: missing === 0,
         isAlmostAvailable: missing === 1,
         missingIngredientCount: missing,
+        favoritedByUsers,
+        isColocMatch: favoritedByUsers.length >= 2,
       };
     });
 
@@ -435,6 +701,8 @@ export class RecipeService {
 
     // Tri : faisables → à 1 ingrédient près → autres, puis score de match
     suggestions.sort((a, b) => {
+      // Les recettes validées par la coloc remontent en tête
+      if (!!b.isColocMatch !== !!a.isColocMatch) return b.isColocMatch ? 1 : -1;
       const rank = (value: RecipeSuggestionExtended) =>
         value.isFullyAvailable ? 0 : value.isAlmostAvailable ? 1 : 2;
       const byRank = rank(a) - rank(b);
@@ -776,6 +1044,35 @@ export class RecipeService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Bloc 1 — marque chaque ingrédient importé comme présent/absent du stock.
+   * Utilisé par l'aperçu de la modale d'import (pastilles vertes / ambre).
+   */
+  async annotateStockStatus(
+    ingredients: Array<{ name: string; quantity?: number | null; unit?: string | null }>,
+  ): Promise<
+    Array<{
+      name: string;
+      quantity: number | null;
+      unit: string | null;
+      inStock: boolean;
+      matchedName: string | null;
+    }>
+  > {
+    const stock = await this.getStockWithMeshIds();
+
+    return ingredients.map((ingredient) => {
+      const match = findStockMatch(ingredient.name, stock);
+      return {
+        name: ingredient.name,
+        quantity: ingredient.quantity ?? null,
+        unit: ingredient.unit ?? null,
+        inStock: match !== null,
+        matchedName: match?.name ?? null,
+      };
+    });
+  }
 
   /** Items en stock avec le meshId de leur zone (pour l'illumination 3D). */
   private async getStockWithMeshIds(): Promise<StockEntry[]> {

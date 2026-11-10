@@ -317,6 +317,62 @@ export interface RecipeSuggestion {
   isFullyAvailable?: boolean;
   isAlmostAvailable?: boolean;
   missingIngredientCount?: number;
+  /** Bloc 1 — recette personnalisée importée par un colocataire */
+  isCustom?: boolean;
+  /** Bloc 1 — colocataires ayant liké la recette */
+  favoritedByUsers?: Array<{ id: string; name: string; colorHex: string }>;
+  /** Bloc 1 — ≥ 2 colocataires l'ont validée (badge 🔥 Match Coloc) */
+  isColocMatch?: boolean;
+}
+
+// ── Recettes personnalisées (Bloc 1) ─────────────────────────────────────────
+
+export interface CustomIngredient {
+  name: string;
+  quantity?: number | null;
+  unit?: string | null;
+}
+
+export interface ScrapedIngredient extends CustomIngredient {
+  inStock: boolean;
+  matchedName: string | null;
+}
+
+export interface ScrapedRecipePreview {
+  title: string;
+  sourceUrl: string;
+  imageUrl: string | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  servings: number;
+  ingredients: ScrapedIngredient[];
+  instructions: string[];
+  stockSummary: { total: number; inStock: number; missing: number };
+}
+
+export interface CustomRecipe {
+  id: string;
+  title: string;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  servings: number;
+  instructions: string[];
+  ingredients: CustomIngredient[];
+  createdAt: string;
+  createdBy: { id: string; name: string; colorHex: string };
+}
+
+export interface CreateCustomRecipePayload {
+  title: string;
+  sourceUrl?: string | null;
+  imageUrl?: string | null;
+  prepTimeMin?: number | null;
+  cookTimeMin?: number | null;
+  servings?: number;
+  instructions: string[];
+  ingredients: CustomIngredient[];
 }
 
 // ── Nutrition : profil & cibles ───────────────────────────────────────────────
