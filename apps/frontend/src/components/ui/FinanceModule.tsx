@@ -364,8 +364,8 @@ export function FinanceModule() {
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div>
             <div className="label-section">MODULE FINANCIER</div>
-            <h2 className="font-display text-xl font-600 text-text-primary mt-0.5">
-              Tricount <span className="text-accent font-300">Coloc</span>
+            <h2 className="font-display text-2xl font-black tracking-wider text-white uppercase mt-0.5">
+              Tricount <span className="text-accent">Coloc</span>
             </h2>
           </div>
           {stats && (

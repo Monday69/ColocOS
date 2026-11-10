@@ -33,7 +33,7 @@ export function ModuleScreen({ module, children }: ModuleScreenProps) {
           une marge haute cohérente avec le HUD du frigo. */}
       <main
         className="flex-1 min-h-0 overflow-hidden px-4
-                   pt-[calc(env(safe-area-inset-top,47px)+1.5rem)]
+                   pt-[calc(env(safe-area-inset-top,47px)+1.25rem)]
                    pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]"
       >
         {children}

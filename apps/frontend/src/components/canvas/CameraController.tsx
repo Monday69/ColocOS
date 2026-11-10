@@ -33,6 +33,9 @@ const CRISPER_ZONE_IDS = new Set(['fridge_crisper_left', 'fridge_crisper_right']
 /** Angle de plongee dans le bac ouvert (degres sous l'horizontale) */
 const CRISPER_PLUNGE_DEG = 40
 
+/** Recul minimal des cadrages de porte (vue aeree sur toute la hauteur) */
+const DOOR_MIN_DISTANCE = 2.4
+
 /**
  * Vue plongeante calculee sur les bornes reelles du bac.
  *
@@ -235,9 +238,10 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef }
         const doorCenter = doorBox.getCenter(new THREE.Vector3())
         const doorSize = doorBox.getSize(new THREE.Vector3())
         const doorSpan = Math.max(doorSize.x, doorSize.y, 0.05)
+        // Recul mini 1.40 m : sinon la camera colle au bac plastique
         const doorDistance = THREE.MathUtils.clamp(
           doorSpan * DISTANCE_FACTOR,
-          MIN_DISTANCE,
+          DOOR_MIN_DISTANCE,
           MAX_DISTANCE,
         )
         // 52 deg sur le flanc gauche : la porte ouverte est de biais, il faut

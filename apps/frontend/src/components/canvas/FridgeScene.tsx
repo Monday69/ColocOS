@@ -47,17 +47,6 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
 
   return (
     <div className="fixed inset-0 w-full h-dvh">
-      {/* ── Bouton de retour en vue globale si une clayette est ouverte ── */}
-      {zoneDetail && (
-        <button
-          onClick={() => closePanel()}
-          className="absolute top-[calc(env(safe-area-inset-top,47px)+168px)] left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2 text-xs font-mono tracking-wider text-white uppercase bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-full backdrop-blur-md transition-all shadow-lg shadow-black/40 hover:scale-105 active:scale-95"
-        >
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          Vue d'ensemble <span className="text-slate-400 font-sans text-[10px]">(Échap)</span>
-        </button>
-      )}
-
       <Canvas
         shadows
         // Hors onglet frigo : aucune frame n'est rendue (économie GPU/batterie)

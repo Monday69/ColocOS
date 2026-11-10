@@ -131,7 +131,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v1.5-door-cam
+          v1.6-refined
         </span>
       </div>
 

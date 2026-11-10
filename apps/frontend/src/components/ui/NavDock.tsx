@@ -68,7 +68,7 @@ function NavTab({
           </motion.div>
         )}
       </div>
-      <span className="font-sans text-[11px] font-medium tracking-wide uppercase leading-none mt-1">
+      <span className="font-sans text-[10.5px] font-medium tracking-wide uppercase leading-none mt-0.5">
         {item.label}
       </span>
     </button>
@@ -134,8 +134,8 @@ export function NavDock() {
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
-                   bg-slate-950/40 backdrop-blur-md border-t border-white/10
-                   pt-2 pb-[max(14px,calc(env(safe-area-inset-bottom,0px)-6px))] px-3"
+                   bg-slate-950/45 backdrop-blur-md border-t border-white/10
+                   pt-1 pb-[max(8px,calc(env(safe-area-inset-bottom,0px)-16px))] px-3"
         aria-label="Navigation principale"
       >
         <motion.div
