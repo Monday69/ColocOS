@@ -64,7 +64,7 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
         frameloop={active ? 'always' : 'never'}
         // Le canvas reste monté : la scène et la caméra survivent au changement d'onglet
         camera={{
-          position: [-0.84, 1.48, 2.95],
+          position: [-0.84, 1.55, 2.85],
           // FOV 44 + recul 2.80 m : cadrage final pour écran 390 px.
           fov: 44,
           near: 0.1,
