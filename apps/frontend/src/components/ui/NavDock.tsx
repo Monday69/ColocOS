@@ -136,9 +136,16 @@ export function NavDock() {
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
-                   bg-slate-950/45 backdrop-blur-md border-t border-white/10
-                   pt-1 pb-[max(4px,calc(env(safe-area-inset-bottom,0px)-28px))] px-3"
+                   bg-slate-950/75 backdrop-blur-xl border-t border-white/10
+                   px-3 flex items-center justify-around"
         aria-label="Navigation principale"
+        // Style inline strict : WebKit iOS interprete mal les classes
+        // arbitraires pb-[max(...)] et rognait le fond avant le bord physique
+        style={{
+          bottom: 0,
+          paddingTop: '6px',
+          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+        }}
       >
         <motion.div
           initial={{ opacity: 0 }}

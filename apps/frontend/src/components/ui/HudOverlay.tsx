@@ -131,7 +131,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v1.8-nav-center
+          v1.9-edge-bottom
         </span>
       </div>
 
