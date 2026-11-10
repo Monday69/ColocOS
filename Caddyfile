@@ -22,8 +22,14 @@
 	@immutable path /assets/* /icons/* /models/* /textures/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 
+	# Page d'entrée : jamais de cache (sinon Safari iOS ressert l'ancien bundle)
+	@html path / /index.html
+	header @html Cache-Control "no-cache, no-store, must-revalidate"
+	header @html Pragma "no-cache"
+	header @html Expires "0"
+
 	# PWA : le Service Worker et le manifest doivent toujours être revalidés
-	@noCache path /sw.js /manifest.json /manifest.webmanifest /index.html
+	@noCache path /sw.js /manifest.json /manifest.webmanifest
 	header @noCache Cache-Control "no-cache, no-store, must-revalidate"
 	header /sw.js Service-Worker-Allowed "/"
 

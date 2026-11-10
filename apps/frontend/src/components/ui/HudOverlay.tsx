@@ -122,7 +122,17 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
       <div className="flex items-baseline gap-2 pointer-events-none">
         <span className="font-display text-2xl font-700 tracking-wider text-text-primary">COLOC</span>
         <span className="font-display text-2xl font-300 tracking-wider text-accent">OS</span>
-        <span className="font-mono text-2xs text-text-tertiary ml-1">v1.0</span>
+        <span
+          className="font-mono text-2xs ml-1 px-1.5 py-[1px] rounded-md"
+          style={{
+            color: '#4fc3f7',
+            backgroundColor: 'rgba(79,195,247,0.12)',
+            border: '1px solid rgba(79,195,247,0.35)',
+            boxShadow: '0 0 10px rgba(79,195,247,0.25)',
+          }}
+        >
+          v1.1-mobile
+        </span>
       </div>
 
       {showFridgeStats && (

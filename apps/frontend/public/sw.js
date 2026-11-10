@@ -12,13 +12,41 @@
 const ICON = '/icons/icon-192.png';
 const BADGE = '/icons/icon-72.png';
 
-self.addEventListener('install', () => {
+/**
+ * Version du Service Worker — à incrémenter à chaque déploiement qui doit
+ * forcer une mise à jour immédiate sur les appareils déjà installés.
+ * v1.1 : activation sans attendre + reprise des onglets ouverts + purge des
+ * anciens caches `colocos-*`.
+ */
+const SW_VERSION = 'colocos-v1.1';
+
+self.addEventListener('install', (event) => {
+  // Active la nouvelle version sans attendre la fermeture des onglets.
   self.skipWaiting();
+  event.waitUntil(Promise.resolve(SW_VERSION));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      // Purge des caches d'une version précédente (le SW n'en crée aucun
+      // aujourd'hui, mais des versions antérieures ont pu en laisser).
+      if (typeof caches !== 'undefined') {
+        const keys = await caches.keys();
+        await Promise.all(
+          keys
+            .filter((key) => key.startsWith('colocos-') && key !== SW_VERSION)
+            .map((key) => caches.delete(key)),
+        );
+      }
+      // Prend le contrôle des onglets déjà ouverts (iOS : pas de reload manuel).
+      await self.clients.claim();
+    })(),
+  );
 });
+
+/** Exposé pour diagnostic depuis la console : `navigator.serviceWorker.controller`. */
+self.COLOCOS_SW_VERSION = SW_VERSION;
 
 self.addEventListener('push', (event) => {
   let payload = { title: 'ColocOS', body: '', data: {} };

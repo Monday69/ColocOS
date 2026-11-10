@@ -99,7 +99,7 @@ function ModulePanel({ module }: { module: AppModule }) {
       animate="visible"
       exit="exit"
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="glass-sheet absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
+      className="glass-sheet absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
       style={{ maxHeight: 'calc(100vh - 156px)' }}
     >
       {/* Reflet spéculaire : dégradé de bordure fin plutôt qu'un liseré saturé */}
@@ -189,17 +189,24 @@ export function NavDock() {
         )}
       </AnimatePresence>
 
-      {/* ── Dock Bar — capsule flottante en verre ────────────────────────── */}
-      <div className="absolute bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+      {/* ── Barre de navigation edge-to-edge (iOS) ───────────────────────────
+          Pleine largeur, collée au bord physique, le Home Indicator est
+          absorbé par le padding bas en env(safe-area-inset-bottom). */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
+                   bg-slate-950/80 backdrop-blur-xl border-t border-white/10
+                   pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] px-4"
+        aria-label="Navigation principale"
+      >
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, type: 'spring', stiffness: 300, damping: 28 }}
-          className="glass-capsule relative flex items-center rounded-[22px] px-1 py-1"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25, duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+          className="relative flex items-center justify-around max-w-lg mx-auto w-full"
         >
-          {/* Sliding active indicator pill — width/position based on 5 items */}
+          {/* Indicateur d'onglet actif — glisse sur 1/5 de la largeur */}
           <motion.div
-            className="absolute top-1 bottom-1 rounded-[18px] bg-white/10 ring-1 ring-white/15"
+            className="absolute top-0 bottom-0 rounded-xl bg-white/10 ring-1 ring-white/15"
             style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}
             animate={{
               left: `calc(${activeIndex} * (100% / 5) + 4px)`,
@@ -217,7 +224,7 @@ export function NavDock() {
             />
           ))}
         </motion.div>
-      </div>
+      </nav>
     </>
   );
 }
