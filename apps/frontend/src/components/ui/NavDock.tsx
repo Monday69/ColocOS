@@ -1,12 +1,8 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Refrigerator, Wallet, ShoppingCart, Scan, ChefHat } from 'lucide-react';
 import clsx from 'clsx';
 import { useNavStore, useFridgeStore, useFinanceStore, useShoppingStore } from '@/store';
 import { hapticTap } from '@/lib/haptics';
-import { FinanceModule } from './FinanceModule';
-import { ShoppingModule } from './ShoppingModule';
-import { ScannerModule } from './ScannerModule';
-import { RecipeModule } from './RecipeModule';
 import type { AppModule } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,62 +75,6 @@ function NavTab({
   );
 }
 
-// ── Module Panel ─────────────────────────────────────────────────────────────
-
-const PANEL_VARIANTS = {
-  hidden:  { opacity: 0, y: 32, scale: 0.98 },
-  visible: { opacity: 1, y: 0,  scale: 1 },
-  exit:    { opacity: 0, y: 24, scale: 0.97 },
-};
-
-// Accent color per module for the panel top-edge line
-const MODULE_ACCENT: Record<string, string> = {
-  finance:  '#4fc3f760',
-  shopping: '#f59e0b60',
-  scanner:  '#00e67660',
-  recipes:  '#a78bfa60',
-};
-
-function ModulePanel({ module }: { module: AppModule }) {
-  if (module === 'fridge') return null;
-
-  const accentGrad = MODULE_ACCENT[module] ?? '#4fc3f760';
-
-  return (
-    <motion.div
-      key={module}
-      variants={PANEL_VARIANTS}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="glass-sheet absolute bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
-      style={{ maxHeight: 'calc(100vh - 156px)' }}
-    >
-      {/* Reflet spéculaire : dégradé de bordure fin plutôt qu'un liseré saturé */}
-      <div
-        className="h-px w-full flex-shrink-0"
-        style={{ background: `linear-gradient(90deg, transparent, ${accentGrad}, transparent)` }}
-      />
-
-      <div
-        className={clsx(
-          'p-4',
-          // SCAN : la module gère son propre scroll (bottom sheet) — un seul
-          // conteneur défilant évite les conflits de gestes sur mobile.
-          module === 'scanner' ? 'flex flex-col min-h-0 overflow-hidden' : 'overflow-y-auto',
-        )}
-        style={{ maxHeight: 'calc(100vh - 172px)' }}
-      >
-        {module === 'finance'  && <FinanceModule />}
-        {module === 'shopping' && <ShoppingModule />}
-        {module === 'scanner'  && <ScannerModule />}
-        {module === 'recipes'  && <RecipeModule />}
-      </div>
-    </motion.div>
-  );
-}
-
 // ── Main NavDock ──────────────────────────────────────────────────────────────
 
 export function NavDock() {
@@ -189,13 +129,6 @@ export function NavDock() {
 
   return (
     <>
-      {/* ── Module Panels ─────────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {activeModule !== 'fridge' && (
-          <ModulePanel key={activeModule} module={activeModule} />
-        )}
-      </AnimatePresence>
-
       {/* ── Barre de navigation edge-to-edge (iOS) ───────────────────────────
           Pleine largeur, collée au bord physique, le Home Indicator est
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
