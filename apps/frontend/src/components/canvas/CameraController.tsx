@@ -30,10 +30,10 @@ type Framing = { target: [number, number, number]; position: [number, number, nu
 const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
   // Vue d'ensemble par défaut (frigo entier, 3/4 face)
   DEFAULT: {
-    target: [-0.84, 1.35, -0.44],
-    // Portrait iPhone : caméra rapprochée (2.45) et recentrée (x = 0) pour que
-    // le frigo occupe toute la hauteur entre le HUD et le dock.
-    position: [0, 1.55, 2.45],
+    target: [-0.84, 1.15, 0],
+    // Cadrage final 390 px : recul à 2.80 m pour que le frigo tienne en largeur
+    // (plus de débordement à droite) tout en gardant la hauteur utile.
+    position: [-0.84, 1.48, 2.95],
   },
   fridge_shelf_top: {
     target: [-0.84, 1.51, -0.5],

@@ -61,9 +61,9 @@ export function FridgeScene() {
       <Canvas
         shadows
         camera={{
-          position: [0, 1.55, 2.45],
-          // FOV 42 conservé : à 2.45 m le frigo remplit la hauteur en portrait.
-          fov: 42,
+          position: [-0.84, 1.48, 2.95],
+          // FOV 44 + recul 2.80 m : cadrage final pour écran 390 px.
+          fov: 44,
           near: 0.1,
           far: 100,
         }}

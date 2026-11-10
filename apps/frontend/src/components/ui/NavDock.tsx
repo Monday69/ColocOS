@@ -40,12 +40,21 @@ function NavTab({
     <button
       onClick={onClick}
       className={clsx(
-        'relative flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-xl',
+        'relative flex flex-col items-center gap-0.5 px-3 py-0.5 rounded-lg',
         // Retour tactile immédiat (iOS) + courbe de sortie douce
         'tap ease-ios select-none focus:outline-none',
-        isActive ? 'text-white' : 'text-slate-400/80 hover:text-slate-200',
+        isActive ? 'text-cyan-400 font-semibold' : 'text-slate-400/80 hover:text-slate-200',
       )}
     >
+      {/* Liseré supérieur 2 px (onglet actif) — remplace la pilule opaque */}
+      {isActive && (
+        <motion.span
+          layoutId="dock-active-edge"
+          className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full bg-cyan-400"
+          style={{ boxShadow: '0 0 8px rgba(34,211,238,0.75)' }}
+          transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+        />
+      )}
       <div className="relative">
         {item.icon}
         {item.badgeCount != null && item.badgeCount > 0 && (
@@ -99,7 +108,7 @@ function ModulePanel({ module }: { module: AppModule }) {
       animate="visible"
       exit="exit"
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="glass-sheet absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
+      className="glass-sheet absolute bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
       style={{ maxHeight: 'calc(100vh - 156px)' }}
     >
       {/* Reflet spéculaire : dégradé de bordure fin plutôt qu'un liseré saturé */}
@@ -178,8 +187,6 @@ export function NavDock() {
     }
   };
 
-  const activeIndex = navItems.findIndex(n => n.id === activeModule);
-
   return (
     <>
       {/* ── Module Panels ─────────────────────────────────────────────────── */}
@@ -194,8 +201,8 @@ export function NavDock() {
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
-                   bg-slate-950/80 backdrop-blur-xl border-t border-white/10
-                   pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] px-4"
+                   bg-slate-950/40 backdrop-blur-md border-t border-white/10
+                   pt-1.5 pb-[max(12px,calc(env(safe-area-inset-bottom,0px)-14px))] px-2"
         aria-label="Navigation principale"
       >
         <motion.div
@@ -204,17 +211,6 @@ export function NavDock() {
           transition={{ delay: 0.25, duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
           className="relative flex items-center justify-around max-w-lg mx-auto w-full"
         >
-          {/* Indicateur d'onglet actif — glisse sur 1/5 de la largeur */}
-          <motion.div
-            className="absolute top-0 bottom-0 rounded-xl bg-white/10 ring-1 ring-white/15"
-            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)' }}
-            animate={{
-              left: `calc(${activeIndex} * (100% / 5) + 4px)`,
-              width: `calc(100% / 5 - 8px)`,
-            }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-          />
-
           {navItems.map(item => (
             <NavTab
               key={item.id}

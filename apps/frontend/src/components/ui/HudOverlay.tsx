@@ -131,7 +131,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v1.1-mobile
+          v1.2-compact
         </span>
       </div>
 
