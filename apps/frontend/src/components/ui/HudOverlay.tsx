@@ -117,7 +117,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
   const showFridgeStats = useNavStore((s) => s.activeModule) === 'fridge';
 
   return (
-    <div className="absolute top-[calc(0.5rem+env(safe-area-inset-top,0px))] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10">
+    <div className="absolute top-[calc(env(safe-area-inset-top,47px)+10px)] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10">
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
       <div className="flex items-baseline gap-2 pointer-events-none">
         <span className="font-display text-2xl font-700 tracking-wider text-text-primary">COLOC</span>
@@ -131,7 +131,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v1.3-layout
+          v1.4-crisper-topview
         </span>
       </div>
 

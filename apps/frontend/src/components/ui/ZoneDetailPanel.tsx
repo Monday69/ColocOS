@@ -531,7 +531,7 @@ export function ZoneDetailPanel() {
         )}
       >
         <div
-          className="glass-sheet flex flex-col max-h-[80vh] md:max-h-none md:h-full
+          className="glass-sheet flex flex-col max-h-[38vh] md:max-h-none md:h-full
                      rounded-t-[28px] md:rounded-t-none md:rounded-l-[20px]
                      md:border-l md:border-t-0 overflow-hidden"
         >

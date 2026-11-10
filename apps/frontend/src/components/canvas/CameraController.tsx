@@ -29,18 +29,46 @@ type Framing = { target: [number, number, number]; position: [number, number, nu
 
 /** Cadrage dédié aux bacs à légumes (inspection du bas du frigo) */
 const CRISPER_ZONE_IDS = new Set(['fridge_crisper_left', 'fridge_crisper_right'])
-const CRISPER_FRAMING: Framing = {
-  target: [-0.84, 0.45, 0],
-  position: [-0.84, 0.85, 1.85],
+
+/** Angle de plongee dans le bac ouvert (degres sous l'horizontale) */
+const CRISPER_PLUNGE_DEG = 40
+
+/**
+ * Vue plongeante calculee sur les bornes reelles du bac.
+ *
+ * Les coordonnees absolues du brief (z ~ 0.85) placent la camera a l'interieur
+ * du caisson : le GLB range les bacs a z ~ -0.5. On derive donc la position des
+ * bornes du mesh, avec une cible abaissee sous le tiroir pour le projeter dans
+ * le tiers superieur de l'ecran, au-dessus du volet de detail.
+ */
+function crisperFraming(zoneId: string): Framing | null {
+  const bounds = getZoneBounds(zoneId)
+  if (!bounds) return null
+
+  const center = bounds.getCenter(new THREE.Vector3())
+  const size = bounds.getSize(new THREE.Vector3())
+  const fov = (44 * Math.PI) / 180
+  const extent = Math.max(size.x, size.z, size.y, 0.3)
+  const distance = (extent / (2 * Math.tan(fov / 2))) * 2.0
+  const angle = (CRISPER_PLUNGE_DEG * Math.PI) / 180
+
+  return {
+    position: [
+      center.x,
+      center.y + Math.sin(angle) * distance,
+      center.z + Math.cos(angle) * distance,
+    ],
+    target: [center.x, center.y - 0.30, center.z],
+  }
 }
 
 const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
   // Vue d'ensemble par défaut (frigo entier, 3/4 face)
   DEFAULT: {
-    target: [-0.84, 1.35, 0],
+    target: [-0.84, 1.55, 0],
     // Cadrage final 390 px : recul à 2.80 m pour que le frigo tienne en largeur
     // (plus de débordement à droite) tout en gardant la hauteur utile.
-    position: [-0.84, 1.55, 2.85],
+    position: [-0.84, 1.65, 2.9],
   },
   fridge_shelf_top: {
     target: [-0.84, 1.51, -0.5],
@@ -192,8 +220,11 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef }
     if (itemId) return
     // Bacs à légumes : cadrage dédié (bas du frigo) plutôt que les bornes du mesh
     if (zoneId && CRISPER_ZONE_IDS.has(zoneId)) {
-      applyFraming(CRISPER_FRAMING)
-      return
+      const plunge = crisperFraming(zoneId)
+      if (plunge) {
+        applyFraming(plunge)
+        return
+      }
     }
     applyFraming((zoneId ? framingFromBounds(zoneId) : null) ?? fallback)
   }, [itemId, zoneId, fallback])

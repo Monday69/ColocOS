@@ -479,7 +479,12 @@ export function FridgeCAD({
     <group {...props} dispose={null}>
       {/* ── 1. Caisson fixe & aménagement intérieur ─────────────────────── */}
       <mesh geometry={nodes.fridge_body.geometry} material={materials['0.615686_0.811765_0.929412_0.000000_0.000000']} position={[-0.48, 0.506, -0.191]} />
-      <mesh geometry={nodes.shelf_crisper_cover.geometry} material={materials['0.980392_0.713725_0.003922_0.000000_0.000000']} position={[-3.124, 0.917, -1.487]} />
+      <mesh
+        geometry={nodes.shelf_crisper_cover.geometry}
+        material={materials['0.980392_0.713725_0.003922_0.000000_0.000000']}
+        position={[-3.124, 0.917, -1.487]}
+        visible={!crisperOpen.left && !crisperOpen.right}
+      />
       {zoneMesh('shelf', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.134, -0.116])}
       {zoneMesh('shelf001', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 0.993, -0.116])}
       {zoneMesh('shelf002', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.51, -0.116])}

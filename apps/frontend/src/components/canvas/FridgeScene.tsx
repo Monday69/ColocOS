@@ -51,7 +51,7 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
       {zoneDetail && (
         <button
           onClick={() => closePanel()}
-          className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2 text-xs font-mono tracking-wider text-white uppercase bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-full backdrop-blur-md transition-all shadow-lg shadow-black/40 hover:scale-105 active:scale-95"
+          className="absolute top-[calc(env(safe-area-inset-top,47px)+160px)] left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2 text-xs font-mono tracking-wider text-white uppercase bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-full backdrop-blur-md transition-all shadow-lg shadow-black/40 hover:scale-105 active:scale-95"
         >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
           Vue d'ensemble <span className="text-slate-400 font-sans text-[10px]">(Échap)</span>
@@ -64,7 +64,7 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
         frameloop={active ? 'always' : 'never'}
         // Le canvas reste monté : la scène et la caméra survivent au changement d'onglet
         camera={{
-          position: [-0.84, 1.55, 2.85],
+          position: [-0.84, 1.65, 2.9],
           // FOV 44 + recul 2.80 m : cadrage final pour écran 390 px.
           fov: 44,
           near: 0.1,
@@ -118,8 +118,8 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
         <directionalLight position={[0.8, 2.4, -1.8]} intensity={0.3} color="#ffd9b0" />
 
         {/* ── Sol et grille ───────────────────────────────────────────────── */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.05, 0]} receiveShadow>
-          <planeGeometry args={[20, 20]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-0.84, -1.05, 1.5]} receiveShadow>
+          <planeGeometry args={[30, 30]} />
           <meshStandardMaterial color="#080a0d" roughness={0.95} metalness={0.05} />
         </mesh>
 
