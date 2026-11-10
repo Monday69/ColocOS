@@ -13,7 +13,7 @@ import { toasts } from '@/components/ui/ToastProvider';
 import { ZONE_LAYOUT } from '@/lib/zoneLayout';
 import { BarcodeScanEngine } from '@/lib/barcode/scanEngine';
 import { hapticSuccess } from '@/lib/haptics';
-import { QuickAddDrawer } from '@/components/ui/QuickAddDrawer';
+import { QuickAddDrawer, type MealSelection } from '@/components/ui/QuickAddDrawer';
 import type { ScannedProduct } from '@/types';
 
 // =============================================================================
@@ -793,6 +793,23 @@ export function ScannerModule() {
     [mealItems],
   );
 
+  /** Aliment frais du marché → ligne du repas (poids + macros de référence). */
+  const handleMealFreshItem = useCallback((item: MealSelection) => {
+    setMealItems((prev) => [
+      ...prev,
+      {
+        key: `fresh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: item.name,
+        grams: item.defaultWeight,
+        kcal100: item.nutriments['energy-kcal_100g'],
+        prot100: item.nutriments.proteins_100g,
+        carb100: item.nutriments.carbohydrates_100g,
+        fat100: item.nutriments.fat_100g,
+        hasMacros: true,
+      },
+    ]);
+  }, []);
+
   const handleValidateMeal = () => {
     if (mealItems.length === 0) return;
     hapticSuccess();
@@ -928,8 +945,6 @@ export function ScannerModule() {
         </AnimatePresence>
 
         {/* Ajout rapide — aliments frais sans code-barres (Sprint 3) */}
-        {nutritionMode === 'stock' && <QuickAddDrawer />}
-
         {/* Panier repas */}
         {nutritionMode === 'meal' && (
           <div className="space-y-2">
@@ -958,6 +973,13 @@ export function ScannerModule() {
                 ))}
               </AnimatePresence>
             )}
+
+        <QuickAddDrawer
+          isMealMode={nutritionMode === 'meal'}
+          onSelectForMeal={handleMealFreshItem}
+        />
+
+
           </div>
         )}
 

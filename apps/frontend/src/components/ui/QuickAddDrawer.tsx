@@ -63,6 +63,67 @@ function matches(preset: FreshPreset, label: string): boolean {
   return [preset.name, ...preset.keywords].some((value) => normalize(value).includes(needle))
 }
 
+// ── Mode « Composer un repas » ────────────────────────────────────────────────
+
+/** Aliment frais remonté au Scanner pour alimenter le panier repas. */
+export interface MealSelection {
+  name: string
+  /** Poids par défaut en grammes (125 g pour un steak, 60 g pour un œuf…) */
+  defaultWeight: number
+  nutriments: {
+    proteins_100g: number
+    'energy-kcal_100g': number
+    carbohydrates_100g: number
+    fat_100g: number
+  }
+}
+
+interface MealProfile {
+  prot: number
+  kcal: number
+  carb: number
+  fat: number
+  /** Poids d'une portion par défaut, en grammes */
+  grams: number
+}
+
+/**
+ * Références nutritionnelles (pour 100 g) des aliments frais vendus sans
+ * code-barres — tables Ciqual/USDA arrondies. Les presets backend ne portent
+ * que calories + protéines : on complète ici glucides, lipides et portion.
+ */
+const MEAL_REFERENCE: Record<string, MealProfile> = {
+  'steak-hache': { prot: 21, kcal: 205, carb: 0, fat: 14, grams: 125 },
+  'filet-poulet': { prot: 23, kcal: 110, carb: 0, fat: 1.5, grams: 150 },
+  'pave-saumon': { prot: 20, kcal: 208, carb: 0, fat: 13, grams: 140 },
+  'jambon-blanc': { prot: 21, kcal: 115, carb: 0.5, fat: 3, grams: 50 },
+  oeufs: { prot: 13, kcal: 140, carb: 0.5, fat: 10, grams: 60 },
+  tomates: { prot: 1.2, kcal: 20, carb: 3, fat: 0.2, grams: 150 },
+  courgettes: { prot: 1.2, kcal: 20, carb: 3, fat: 0.2, grams: 150 },
+  avocat: { prot: 2, kcal: 160, carb: 9, fat: 15, grams: 150 },
+  pommes: { prot: 0.3, kcal: 52, carb: 14, fat: 0.2, grams: 150 },
+  salade: { prot: 1.4, kcal: 15, carb: 1.5, fat: 0.2, grams: 100 },
+  pain: { prot: 9, kcal: 265, carb: 49, fat: 3, grams: 80 },
+  'fromage-coupe': { prot: 25, kcal: 350, carb: 1, fat: 28, grams: 40 },
+}
+
+/** Repli par catégorie quand le preset n'a pas de référence dédiée. */
+const MEAL_CATEGORY_FALLBACK: Record<FreshCategoryId, MealProfile> = {
+  butcher: { prot: 21, kcal: 150, carb: 0, fat: 8, grams: 125 },
+  produce: { prot: 1.2, kcal: 20, carb: 3, fat: 0.2, grams: 150 },
+  bakery: { prot: 8, kcal: 265, carb: 50, fat: 2, grams: 60 },
+}
+
+function mealProfileFor(preset: FreshPreset): MealProfile {
+  const ref = MEAL_REFERENCE[preset.id] ?? MEAL_CATEGORY_FALLBACK[preset.category]
+  // Les valeurs du preset backend restent prioritaires quand elles existent
+  return {
+    ...ref,
+    prot: preset.proteins ?? ref.prot,
+    kcal: preset.calories ?? ref.kcal,
+  }
+}
+
 // ── Tuile ─────────────────────────────────────────────────────────────────────
 
 interface TileProps {
@@ -245,7 +306,13 @@ function ConfirmSheet({ preset, initialQuantity, onCancel, onConfirm }: ConfirmS
 
 // ── Tiroir complet ────────────────────────────────────────────────────────────
 
-export function QuickAddDrawer() {
+interface QuickAddDrawerProps {
+  /** Mode repas : les aliments frais alimentent le panier nutritionnel */
+  isMealMode?: boolean
+  onSelectForMeal?: (item: MealSelection) => void
+}
+
+export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAddDrawerProps = {}) {
   const { setFridgeState } = useFridgeStore()
   const [open, setOpen] = useState(true)
   const [catalog, setCatalog] = useState<{ categories: Array<{ id: FreshCategoryId; label: string; emoji: string }>; presets: FreshPreset[] } | null>(null)
@@ -290,7 +357,35 @@ export function QuickAddDrawer() {
     return visible.slice(0, 4)
   }, [visible, presets.length, query])
 
+  /** Aliment frais → panier repas (aucun appel réseau de stock). */
+  const sendToMeal = (preset: FreshPreset, quantity?: number | null) => {
+    if (!onSelectForMeal) return false
+    const profile = mealProfileFor(preset)
+    const typedQty = quantity && quantity > 0 ? quantity : null
+    // `unit` = pièces (steak, œuf) : portion de référence × nombre de pièces.
+    // Unité de poids : le poids saisi prime, sinon la portion de référence.
+    const grams =
+      preset.unit === 'unit'
+        ? Math.round(profile.grams * (typedQty ?? preset.defaultQty))
+        : Math.round(typedQty ?? profile.grams)
+
+    onSelectForMeal({
+      name: preset.name,
+      defaultWeight: grams,
+      nutriments: {
+        proteins_100g: profile.prot,
+        'energy-kcal_100g': profile.kcal,
+        carbohydrates_100g: profile.carb,
+        fat_100g: profile.fat,
+      },
+    })
+    hapticSuccess()
+    return true
+  }
+
   const openPreset = (preset: FreshPreset, quantity?: number | null) => {
+    if (isMealMode && sendToMeal(preset, quantity)) return;
+
     setSelected(preset)
     setSelectedQuantity(quantity ?? preset.defaultQty)
   }
@@ -513,7 +608,7 @@ export function QuickAddDrawer() {
                               onClick={() => {
                                 if (!label) return
                                 // Nom libre : 5 jours par défaut, clayette du milieu
-                                setSelected({
+                                const customPreset: FreshPreset = {
                                   id: `custom-${label}`,
                                   name: label,
                                   category: 'bakery',
@@ -528,7 +623,9 @@ export function QuickAddDrawer() {
                                   keywords: [],
                                   shelfLifeLabel: 'J+5',
                                   defaultExpiryDate: addDaysIso(isoToday(), 5),
-                                })
+                                }
+                                if (isMealMode && sendToMeal(customPreset, parsedQuantity)) return
+                                setSelected(customPreset)
                                 setSelectedQuantity(parsedQuantity ?? 1)
                               }}
                               className="mt-1 font-mono text-[10px] text-accent underline"
