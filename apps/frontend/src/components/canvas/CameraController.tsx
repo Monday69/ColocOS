@@ -27,6 +27,13 @@ interface CameraControllerProps {
 
 type Framing = { target: [number, number, number]; position: [number, number, number] }
 
+/** Cadrage dédié aux bacs à légumes (inspection du bas du frigo) */
+const CRISPER_ZONE_IDS = new Set(['fridge_crisper_left', 'fridge_crisper_right'])
+const CRISPER_FRAMING: Framing = {
+  target: [-0.84, 0.45, 0],
+  position: [-0.84, 0.85, 1.85],
+}
+
 const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
   // Vue d'ensemble par défaut (frigo entier, 3/4 face)
   DEFAULT: {
@@ -183,6 +190,11 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef }
   // sinon la vue d'ensemble d'origine.
   useEffect(() => {
     if (itemId) return
+    // Bacs à légumes : cadrage dédié (bas du frigo) plutôt que les bornes du mesh
+    if (zoneId && CRISPER_ZONE_IDS.has(zoneId)) {
+      applyFraming(CRISPER_FRAMING)
+      return
+    }
     applyFraming((zoneId ? framingFromBounds(zoneId) : null) ?? fallback)
   }, [itemId, zoneId, fallback])
 

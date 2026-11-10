@@ -9,7 +9,8 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { GLTF } from 'three-stdlib'
 import { ZoneProducts } from '@/components/3d/ProductItem3D'
-import { registerZoneObject } from '@/lib/zoneRegistry'
+import { getZoneBounds, registerZoneObject } from '@/lib/zoneRegistry'
+import { useUIStore } from '@/store'
 import type { FridgeStateTwin, HealthStatus } from '@/types'
 
 type GLTFResult = GLTF & {
@@ -93,8 +94,6 @@ const INTERIOR_PRODUCT_ZONES = [
   'fridge_shelf_top',
   'fridge_shelf_middle',
   'fridge_shelf_bottom',
-  'fridge_crisper_left',
-  'fridge_crisper_right',
   'freezer_drawer_1',
 ] as const
 
@@ -145,6 +144,8 @@ interface InteractiveZoneProps {
   material: THREE.MeshStandardMaterial
   position: [number, number, number]
   onZoneSelect: (zoneId: string) => void
+  /** `false` : raycast neutralisé (porte fermée / animation en cours) */
+  interactive?: boolean
 }
 
 function InteractiveZone({
@@ -154,6 +155,7 @@ function InteractiveZone({
   material,
   position,
   onZoneSelect,
+  interactive = true,
 }: InteractiveZoneProps) {
   const [hovered, setHovered] = useState(false)
   const meshRef = useRef<THREE.Mesh>(null)
@@ -200,6 +202,10 @@ function InteractiveZone({
       geometry={geometry}
       material={zoneMaterial}
       position={position}
+      // Zone non sélectionnable (porte fermée ou pendant l'animation) :
+      // on n'écrase `raycast` que dans ce cas — passer `undefined` casserait
+      // la méthode par défaut de THREE.Mesh et casserait tout le picking.
+      {...(interactive ? {} : { raycast: NOOP_RAYCAST })}
       onPointerOver={(e) => {
         e.stopPropagation()
         setHovered(true)
@@ -218,6 +224,79 @@ function InteractiveZone({
     />
   )
 }
+
+/** Neutralise le picking d'un mesh (porte fermée / animation) */
+const NOOP_RAYCAST = () => null
+
+/** Zones accessibles uniquement quand la porte du congélateur est ouverte */
+const FREEZER_ZONE_IDS = new Set<string>([
+  'freezer_shelf',
+  'freezer_drawer_1',
+  'freezer_drawer_2',
+])
+
+
+/**
+ * Les bacs à légumes sont enfoncés dans la CAO (z ≈ -1.49) et la clayette
+ * basse (z ≈ -0.12) intercepte le rayon. Ce proxy invisible, placé devant le
+ * meuble, rend la zone cliquable sans toucher à la géométrie d'origine.
+ */
+function CrisperHitProxy({
+  zoneId,
+  onSelect,
+  enabled,
+}: {
+  zoneId: string
+  onSelect: (zoneId: string) => void
+  enabled: boolean
+}) {
+  const [box, setBox] = useState<THREE.Box3 | null>(null)
+
+  useEffect(() => {
+    let frame = 0
+    let raf = 0
+    const read = () => {
+      const bounds = getZoneBounds(zoneId)
+      if (bounds) {
+        setBox(bounds.clone())
+        return
+      }
+      if (frame++ < 120) raf = requestAnimationFrame(read)
+    }
+    read()
+    return () => cancelAnimationFrame(raf)
+  }, [zoneId])
+
+  if (!box || !enabled) return null
+
+  const center = box.getCenter(new THREE.Vector3())
+  const size = box.getSize(new THREE.Vector3())
+
+  return (
+    <mesh
+      position={[center.x, center.y, 0.32]}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect(zoneId)
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        document.body.style.cursor = 'pointer'
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = 'default'
+      }}
+    >
+      <boxGeometry args={[Math.max(size.x, 0.2) * 0.92, Math.max(size.y, 0.2) * 0.92, 0.12]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  )
+}
+
+/** Course des bacs à légumes, en unités de scène (~28 cm) */
+const CRISPER_SLIDE = 0.28
+/** Durée du verrou tactile après un clic de porte (ms) */
+const DOOR_ANIMATION_LOCK_MS = 330
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FridgeCAD
@@ -239,9 +318,19 @@ export function FridgeCAD({
 
   const [isFridgeOpen, setIsFridgeOpen] = useState(false)
   const [isFreezerOpen, setIsFreezerOpen] = useState(false)
+  // Bacs à légumes coulissants (28 cm vers l'utilisateur)
+  const [crisperOpen, setCrisperOpen] = useState({ left: false, right: false })
+  // Zone actuellement inspectée (null = retour à la vue d'ensemble)
+  const selectedMeshId = useUIStore((state) => state.selectedMeshId)
+  // Verrou anti double-tap pendant l'animation de porte (~330 ms)
+  const [doorAnimating, setDoorAnimating] = useState(false)
+  const doorLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fridgePivotRef = useRef<THREE.Group>(null)
   const freezerPivotRef = useRef<THREE.Group>(null)
+  // Groupes coulissants des bacs (translation Z animée)
+  const crisperLeftRef = useRef<THREE.Group>(null)
+  const crisperRightRef = useRef<THREE.Group>(null)
   // Repère local de la porte (contenu + produits solidaires du pivot)
   const doorContentRef = useRef<THREE.Group>(null)
 
@@ -297,6 +386,21 @@ export function FridgeCAD({
         delta
       )
     }
+
+    // 3. Bacs à légumes : coulissement sur Z (0 → +0.28 vers l'utilisateur)
+    const drawers: Array<[THREE.Group | null, boolean]> = [
+      [crisperLeftRef.current, crisperOpen.left],
+      [crisperRightRef.current, crisperOpen.right],
+    ]
+    for (const [group, open] of drawers) {
+      if (!group) continue
+      group.position.z = THREE.MathUtils.damp(
+        group.position.z,
+        open ? CRISPER_SLIDE : 0,
+        8,
+        delta,
+      )
+    }
   })
 
   // Statut de santé d'une zone (default: 'empty' → matériau d'origine)
@@ -306,6 +410,50 @@ export function FridgeCAD({
   // Items projetés pour la 3D (packagings)
   const zoneItems = (meshId: string) => fridgeState?.zones[meshId]?.items ?? []
 
+  /**
+   * Verrou tactile pendant l'ouverture/fermeture (~330 ms) : évite qu'un tap
+   * destiné à la porte ne sélectionne une clayette traversée par le rayon.
+   */
+  const lockInteriorForAnimation = () => {
+    setDoorAnimating(true)
+    if (doorLockTimer.current) clearTimeout(doorLockTimer.current)
+    doorLockTimer.current = setTimeout(() => setDoorAnimating(false), DOOR_ANIMATION_LOCK_MS)
+  }
+
+  useEffect(
+    () => () => {
+      if (doorLockTimer.current) clearTimeout(doorLockTimer.current)
+    },
+    [],
+  )
+
+
+  const CRISPER_ZONE_ID_LIST = ['fridge_crisper_left', 'fridge_crisper_right']
+
+  // Auto-fermeture : porte refermée, autre zone sélectionnée ou retour DEFAULT
+  useEffect(() => {
+    const isOnCrisper = !!selectedMeshId && CRISPER_ZONE_ID_LIST.includes(selectedMeshId)
+    if (!isFridgeOpen || !isOnCrisper) {
+      setCrisperOpen((current) =>
+        current.left || current.right ? { left: false, right: false } : current,
+      )
+    }
+  }, [isFridgeOpen, selectedMeshId])
+
+  // Zones intérieures : cliquables seulement porte ouverte ET hors animation
+  const interiorInteractive = isFridgeOpen && !doorAnimating
+  const freezerInteractive = isFreezerOpen && !doorAnimating
+
+  /** Un clic sur un bac à légumes le fait coulisser (28 cm) + cadrage dédié. */
+  const handleZoneSelect = (zoneId: string) => {
+    if (zoneId === 'fridge_crisper_left') {
+      setCrisperOpen((current) => ({ ...current, left: !current.left }))
+    } else if (zoneId === 'fridge_crisper_right') {
+      setCrisperOpen((current) => ({ ...current, right: !current.right }))
+    }
+    onZoneSelect(zoneId)
+  }
+
   // Raccourci : mesh CAD → InteractiveZone reliée à sa StorageZone
   const zoneMesh = (
     nodeName: keyof typeof CAD_ZONE_MAP,
@@ -313,6 +461,7 @@ export function FridgeCAD({
     position: [number, number, number],
   ) => {
     const zoneId = CAD_ZONE_MAP[nodeName]
+    const interactive = FREEZER_ZONE_IDS.has(zoneId) ? freezerInteractive : interiorInteractive
     return (
       <InteractiveZone
         zoneId={zoneId}
@@ -320,7 +469,8 @@ export function FridgeCAD({
         geometry={nodes[nodeName].geometry}
         material={material}
         position={position}
-        onZoneSelect={onZoneSelect}
+        onZoneSelect={handleZoneSelect}
+        interactive={interactive}
       />
     )
   }
@@ -336,16 +486,37 @@ export function FridgeCAD({
       {zoneMesh('shelf003', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.228, -0.116])}
       {zoneMesh('rack_bottles', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-1.08, 0.523, -0.704])}
       {zoneMesh('freezer_shelf', materials['0.917647_0.917647_0.917647_0.000000_0.000000'], [-3.496, 2.021, 1.057])}
-      {zoneMesh('drawer_crisper_left', materials['0.615686_0.811765_0.929412_0.000000_0.000000'], [-3.123, 0.666, -1.487])}
-      {zoneMesh('drawer_crisper_right', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-3.125, 0.666, -1.487])}
+      {/* Zones de clic des bacs (invisibles, devant le meuble) */}
+      <CrisperHitProxy
+        zoneId="fridge_crisper_left"
+        onSelect={handleZoneSelect}
+        enabled={interiorInteractive}
+      />
+      <CrisperHitProxy
+        zoneId="fridge_crisper_right"
+        onSelect={handleZoneSelect}
+        enabled={interiorInteractive}
+      />
+
+      {/* Bacs à légumes coulissants : le mesh ET son contenu avancent ensemble */}
+      <group ref={crisperLeftRef} name="crisper:left">
+        {zoneMesh('drawer_crisper_left', materials['0.615686_0.811765_0.929412_0.000000_0.000000'], [-3.123, 0.666, -1.487])}
+        <group visible={isFridgeOpen}>
+          <ZoneProducts zoneId="fridge_crisper_left" items={zoneItems('fridge_crisper_left')} />
+        </group>
+      </group>
+      <group ref={crisperRightRef} name="crisper:right">
+        {zoneMesh('drawer_crisper_right', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-3.125, 0.666, -1.487])}
+        <group visible={isFridgeOpen}>
+          <ZoneProducts zoneId="fridge_crisper_right" items={zoneItems('fridge_crisper_right')} />
+        </group>
+      </group>
 
       {/* ── Produits réels (packagings) sur les zones intérieures ───────── */}
       {INTERIOR_PRODUCT_ZONES.map((zoneId) => (
-        <ZoneProducts
-          key={zoneId}
-          zoneId={zoneId}
-          items={zoneItems(zoneId)}
-        />
+        <group key={zoneId} visible={isFridgeOpen}>
+          <ZoneProducts zoneId={zoneId} items={zoneItems(zoneId)} />
+        </group>
       ))}
 
       {/* ── 2. Porte Congélateur ────────────────────────────────────────── */}
@@ -353,14 +524,10 @@ export function FridgeCAD({
         ref={freezerPivotRef}
         position={hinge.pivot}
         onClick={(e) => {
-          if (isFreezerOpen) {
-            // Fermeture : on ne sélectionne pas la zone derrière la porte
-            e.stopPropagation()
-            setIsFreezerOpen(false)
-          } else {
-            // Ouverture : l'événement continue vers la clayette située derrière
-            setIsFreezerOpen(true)
-          }
+          // Stop strict : plus aucun clic ne traverse la porte (anti-pass-through)
+          e.stopPropagation()
+          lockInteriorForAnimation()
+          setIsFreezerOpen((open) => !open)
         }}
       >
         <group position={[-hinge.pivot[0], -hinge.pivot[1], -hinge.pivot[2]]}>
@@ -377,15 +544,10 @@ export function FridgeCAD({
         ref={fridgePivotRef}
         position={hinge.pivot}
         onClick={(e) => {
-          if (isFridgeOpen) {
-            // Fermeture : la porte reste prioritaire, pas de sélection derrière
-            e.stopPropagation()
-            setIsFridgeOpen(false)
-          } else {
-            // Ouverture : la propagation continue vers la clayette cliquée à
-            // travers la porte (un seul clic = porte ouverte + zone sélectionnée)
-            setIsFridgeOpen(true)
-          }
+          // Stop strict : le rayon ne sélectionne plus la clayette derrière la porte
+          e.stopPropagation()
+          lockInteriorForAnimation()
+          setIsFridgeOpen((open) => !open)
         }}
         onPointerOver={(e) => {
           e.stopPropagation()
