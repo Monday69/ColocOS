@@ -27,7 +27,7 @@ export function HealthLegend() {
   if (!isOverview) return null;
 
   return (
-    <div className="absolute bottom-24 left-4 md:bottom-4 pointer-events-none select-none animate-fade-up z-10">
+    <div className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-4 md:bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] pointer-events-none select-none animate-fade-up z-10">
       <div className="panel px-3 py-2.5 flex flex-col gap-1.5">
         <div className="label-micro mb-1">État de santé</div>
         {LEGEND_ITEMS.map((item) => (

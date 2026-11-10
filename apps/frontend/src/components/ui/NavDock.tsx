@@ -99,7 +99,7 @@ function ModulePanel({ module }: { module: AppModule }) {
       animate="visible"
       exit="exit"
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="glass-sheet absolute bottom-[72px] left-2 right-2 rounded-2xl overflow-hidden"
+      className="glass-sheet absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-2 right-2 rounded-2xl overflow-hidden"
       style={{ maxHeight: 'calc(100vh - 156px)' }}
     >
       {/* Reflet spéculaire : dégradé de bordure fin plutôt qu'un liseré saturé */}
@@ -190,7 +190,7 @@ export function NavDock() {
       </AnimatePresence>
 
       {/* ── Dock Bar — capsule flottante en verre ────────────────────────── */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+      <div className="absolute bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

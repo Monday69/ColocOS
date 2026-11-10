@@ -46,7 +46,7 @@ export function FridgeScene() {
   }, [selectedItemId, setSelectedItemId, zoneDetail, closePanel]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="fixed inset-0 w-full h-dvh">
       {/* ── Bouton de retour en vue globale si une clayette est ouverte ── */}
       {zoneDetail && (
         <button
@@ -61,7 +61,8 @@ export function FridgeScene() {
       <Canvas
         shadows
         camera={{
-          position: [-0.84, 1.7, 2.6],
+          position: [-0.84, 1.75, 3.15],
+          // FOV conservé à 42 ; le recul (3.15) laisse respirer le frigo en portrait.
           fov: 42,
           near: 0.1,
           far: 100,

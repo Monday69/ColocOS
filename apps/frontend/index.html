@@ -7,7 +7,7 @@
          viewport-fit=cover : utilise le safe-area iPhone (encoche / Dynamic Island)
          user-scalable=no   : bloque le zoom accidentel pendant l'utilisation du scanner
     ──────────────────────────────────────────────────────────────────────── -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
     <title>ColocOS — Digital Kitchen Twin</title>
     <meta name="description" content="Gestionnaire de colocation avec Digital Twin 3D, scanner de produits et suivi des finances." />
@@ -62,13 +62,14 @@
     <!-- ── Splash screen color (évite le flash blanc) ────────────────────── -->
     <style>
       html, body { background: #0a0b0d; margin: 0; padding: 0; }
-      /* Safe area padding pour les iPhones avec encoche */
+      /* Plein écran : le canvas 3D doit atteindre le bord physique de l'écran.
+         Les safe-areas sont gérées par les composants (dock, HUD, légende). */
       #root {
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
-        height: 100dvh; /* dynamic viewport height — corrige les navigateurs mobiles */
+        width: 100vw;
+        height: 100dvh;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
       }
     </style>
   </head>

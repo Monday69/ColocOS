@@ -117,7 +117,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
   const showFridgeStats = useNavStore((s) => s.activeModule) === 'fridge';
 
   return (
-    <div className="absolute top-4 left-4 flex flex-col gap-2 select-none z-10">
+    <div className="absolute top-[calc(0.5rem+env(safe-area-inset-top,0px))] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10">
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
       <div className="flex items-baseline gap-2 pointer-events-none">
         <span className="font-display text-2xl font-700 tracking-wider text-text-primary">COLOC</span>
@@ -130,15 +130,15 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
       )}
 
       {/* ── Stats + Mute button ───────────────────────────────────────────── */}
-      <div className="panel px-3 py-2 flex items-center gap-3">
+      <div className="panel px-2.5 sm:px-3 py-2 flex items-center gap-2 sm:gap-3 max-w-[calc(100vw-2rem)]">
         {/* Stat chips */}
         {showFridgeStats && (
           <>
-            <div className="flex gap-4 pointer-events-none">
+            <div className="flex gap-2.5 sm:gap-4 pointer-events-none">
               {stats.map((s) => (
                 <div key={s.label} className="flex flex-col items-center gap-0.5">
                   <span
-                    className="font-mono text-lg font-medium leading-none tabular-nums"
+                    className="font-mono text-base sm:text-lg font-medium leading-none tabular-nums"
                     style={{ color: s.color }}
                   >
                     {s.value}
@@ -160,7 +160,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
           onClick={handleMuteToggle}
           title={isMuted ? 'Activer le son' : 'Couper le son'}
           className={clsx(
-            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+            'w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0',
             'border tap ease-ios cursor-pointer',
             isMuted
               ? 'border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
@@ -200,7 +200,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
           }
           aria-label="Notifications de péremption"
           className={clsx(
-            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+            'w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0',
             'border tap ease-ios',
             pushStatus?.supported === false
               ? 'border-white/5 text-slate-600 cursor-not-allowed'
@@ -233,7 +233,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
           }}
           title="Profil & objectifs nutritionnels"
           aria-label="Profil et objectifs nutritionnels"
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0
                      border border-white/10 text-slate-400 tap ease-ios cursor-pointer
                      hover:text-slate-200 hover:border-white/20"
         >

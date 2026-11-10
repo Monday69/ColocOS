@@ -31,7 +31,9 @@ const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
   // Vue d'ensemble par défaut (frigo entier, 3/4 face)
   DEFAULT: {
     target: [-0.84, 1.35, -0.44],
-    position: [-0.84, 1.7, 2.6],
+    // Recul de 2.6 → 3.15 : le frigo garde une marge sous le HUD et au-dessus
+    // du dock désormais collé au bord physique de l'écran.
+    position: [-0.84, 1.75, 3.15],
   },
   fridge_shelf_top: {
     target: [-0.84, 1.51, -0.5],

@@ -23,13 +23,15 @@ function AppContent() {
   useConnectivity();
 
   return (
-    <div className="relative w-full h-full overflow-hidden scanlines grain">
+    <div className="fixed inset-0 h-dvh w-screen overflow-hidden scanlines grain">
       {/* 🟢 AJOUTE LA MODAL ICI */}
       <AuthModal /> 
 
       <ToastProvider />
 
-      <div className="absolute inset-0">
+      {/* Le canvas remplit l'écran jusqu'au bord physique (safe-areas gérées
+          par le HUD, le dock et la légende) */}
+      <div className="absolute inset-0 h-dvh w-full">
         <FridgeScene />
       </div>
 

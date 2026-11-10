@@ -97,7 +97,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: colocos_tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --url http://web:80
+    command: tunnel --no-autoupdate --url http://web:80
     depends_on:
       - web
     profiles: ["tunnel"]
