@@ -1,0 +1,26 @@
+# Contexte de build = racine du monorepo : on exclut tout ce qui est lourd
+# ou sensible. Les Dockerfiles recopient uniquement ce dont ils ont besoin.
+
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/.cache
+
+# Secrets : jamais dans une image
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+!**/.env.docker.example
+
+# Divers
+**/.git
+**/.gitignore
+**/*.log
+**/coverage
+**/.DS_Store
+**/__pycache__
+**/*.tsbuildinfo
+docs
+README.md

@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ColocOS — Caddy (frontend statique + reverse proxy API + HTTPS local)
+#
+#  • SPA Vite servie depuis /srv avec repli sur index.html
+#  • /api/* relayé vers le conteneur backend (même origine → pas de CORS)
+#  • Service Worker et manifest jamais mis en cache (mise à jour PWA immédiate)
+#  • HTTPS automatique : `tls internal` (CA locale) pour le Wi-Fi / le LAN
+#    DOMAIN peut être changé par variable d'environnement (ex. colocos.home)
+# ─────────────────────────────────────────────────────────────────────────────
+{
+	# Pas de redirection HTTP→HTTPS automatique : le tunnel Cloudflare et les
+	# appareils du LAN tapent directement http://web:80.
+	auto_https disable_redirects
+	admin off
+}
+
+# Handlers communs aux deux points d'écoute (443 et 80)
+(colocos) {
+	encode zstd gzip
+
+	# Assets fingerprintés par Vite → cache long et immuable
+	@immutable path /assets/* /icons/* /models/* /textures/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	# PWA : le Service Worker et le manifest doivent toujours être revalidés
+	@noCache path /sw.js /manifest.json /manifest.webmanifest /index.html
+	header @noCache Cache-Control "no-cache, no-store, must-revalidate"
+	header /sw.js Service-Worker-Allowed "/"
+
+	# Sécurité de base
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# API : reverse proxy transparent (le backend expose déjà /api/*)
+	handle /api/* {
+		reverse_proxy backend:3001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			transport http {
+				read_timeout 60s
+				write_timeout 60s
+			}
+		}
+	}
+
+	# Tout le reste : SPA
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# HTTPS local (certificat auto-signé par la CA interne de Caddy)
+{$DOMAIN:localhost} {
+	import colocos
+	tls internal
+}
+
+# HTTP simple : tunnel Cloudflare, tests LAN, ou clients sans la CA
+:80 {
+	import colocos
+}

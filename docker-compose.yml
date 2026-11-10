@@ -1,10 +1,19 @@
-version: "3.9"
+# ─────────────────────────────────────────────────────────────────────────────
+# ColocOS — stack complète (Postgres + API + Caddy/SPA + tunnel optionnel)
+#
+#   docker compose up -d db backend web           # stack applicative
+#   docker compose --profile tunnel up -d tunnel  # + URL HTTPS publique (iOS)
+#   docker compose --profile tools up -d          # pgAdmin + Redis (debug)
+#
+# Le service `db` conserve le nom de conteneur `colocos_db` et le port 5433
+# utilisés par le développement local (apps/backend/.env → localhost:5433).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: colocos
 
 services:
-  # ─────────────────────────────────────────
-  # PostgreSQL — Base de données principale
-  # ─────────────────────────────────────────
-  postgres:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
     image: postgres:16-alpine
     container_name: colocos_db
     restart: unless-stopped
@@ -13,6 +22,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-colocos_secret}
       POSTGRES_DB: ${POSTGRES_DB:-colocos_db}
     ports:
+      # Publié pour le développement local (psql, Prisma Studio…)
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -22,12 +32,79 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - colocos_network
 
-  # ─────────────────────────────────────────
-  # pgAdmin — Interface d'administration BDD
-  # ─────────────────────────────────────────
+  # ── API Express + Prisma ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: colocos/backend:local
+    container_name: colocos_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      TZ: ${TZ:-Europe/Paris}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-colocos}:${POSTGRES_PASSWORD:-colocos_secret}@db:5432/${POSTGRES_DB:-colocos_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-colocos_dev_jwt_secret_change_me_0123456789}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-colocos_dev_refresh_secret_change_me_0123456789}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      # Web Push — optionnel : sans clés l'API démarre et désactive l'envoi
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:contact@colocos.local}
+      SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY:-}
+      EXPIRY_ALERT_THRESHOLD_DAYS: ${EXPIRY_ALERT_THRESHOLD_DAYS:-7}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - colocos_network
+
+  # ── Caddy + SPA Vite ──────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    image: colocos/web:local
+    container_name: colocos_web
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    networks:
+      - colocos_network
+
+  # ── Tunnel Cloudflare (URL HTTPS publique pour iOS / Web Push) ────────────
+  # docker compose --profile tunnel up -d tunnel
+  # L'URL publique apparaît dans : docker compose logs -f tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: colocos_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --url http://web:80
+    depends_on:
+      - web
+    profiles: ["tunnel"]
+    networks:
+      - colocos_network
+
+  # ── Outils de debug (profil « tools ») ────────────────────────────────────
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: colocos_pgadmin
@@ -39,51 +116,45 @@ services:
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
       - "${PGADMIN_PORT:-5050}:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["tools"]
     networks:
       - colocos_network
-    profiles:
-      - tools # Démarrer avec: docker compose --profile tools up
 
-  # ─────────────────────────────────────────
-  # Redis — Cache sessions + jobs asynchrones
-  # (OFF cache overflow, recipe job queue)
-  # ─────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: colocos_redis
     restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles: ["tools"]
     networks:
       - colocos_network
 
-# ─────────────────────────────────────────
-# Volumes persistants
-# ─────────────────────────────────────────
 volumes:
   postgres_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
   pgadmin_data:
     driver: local
   redis_data:
     driver: local
 
-# ─────────────────────────────────────────
-# Réseau interne isolé
-# ─────────────────────────────────────────
 networks:
   colocos_network:
     driver: bridge

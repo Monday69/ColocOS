@@ -1,0 +1,10 @@
+# Build du frontend : le contexte racine exclut déjà node_modules/dist.
+# Ce fichier documente les exclusions propres à la SPA si le contexte devient
+# apps/frontend (build autonome).
+node_modules
+dist
+.env
+.env.*
+!.env.docker.example
+*.log
+coverage
