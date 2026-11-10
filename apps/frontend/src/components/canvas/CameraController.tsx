@@ -226,6 +226,35 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef }
         return
       }
     }
+    // Balconnets de porte : la porte est pivotee a gauche, une vue de face
+    // classique ne montre que la tranche. On se decale sur le flanc gauche et
+    // on avance en Z pour regarder droit dans les rangements.
+    if (zoneId && zoneId.startsWith('fridge_door_')) {
+      const doorBox = getZoneBounds(zoneId)
+      if (doorBox) {
+        const doorCenter = doorBox.getCenter(new THREE.Vector3())
+        const doorSize = doorBox.getSize(new THREE.Vector3())
+        const doorSpan = Math.max(doorSize.x, doorSize.y, 0.05)
+        const doorDistance = THREE.MathUtils.clamp(
+          doorSpan * DISTANCE_FACTOR,
+          MIN_DISTANCE,
+          MAX_DISTANCE,
+        )
+        // 52 deg sur le flanc gauche : la porte ouverte est de biais, il faut
+        // se decaler lateralement pour voir l'interieur des balconnets
+        const doorAngle = (52 * Math.PI) / 180
+        applyFraming({
+          position: [
+            doorCenter.x + Math.sin(doorAngle) * doorDistance,
+            doorCenter.y + doorSize.y * 0.25,
+            doorCenter.z + Math.cos(doorAngle) * doorDistance,
+          ],
+          target: [doorCenter.x, doorCenter.y, doorCenter.z],
+        })
+        return
+      }
+    }
+
     applyFraming((zoneId ? framingFromBounds(zoneId) : null) ?? fallback)
   }, [itemId, zoneId, fallback])
 

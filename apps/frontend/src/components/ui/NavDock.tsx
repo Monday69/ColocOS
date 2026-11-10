@@ -36,7 +36,7 @@ function NavTab({
     <button
       onClick={onClick}
       className={clsx(
-        'relative flex flex-col items-center gap-0.5 px-3 py-0.5 rounded-lg',
+        'relative flex flex-col items-center px-3 py-0.5 rounded-lg',
         // Retour tactile immédiat (iOS) + courbe de sortie douce
         'tap ease-ios select-none focus:outline-none',
         isActive ? 'text-cyan-400 font-semibold' : 'text-slate-400/80 hover:text-slate-200',
@@ -46,7 +46,7 @@ function NavTab({
       {isActive && (
         <motion.span
           layoutId="dock-active-edge"
-          className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full bg-cyan-400"
+          className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-[2px] w-6 rounded-full bg-cyan-400"
           style={{ boxShadow: '0 0 8px rgba(34,211,238,0.75)' }}
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
         />
@@ -68,7 +68,7 @@ function NavTab({
           </motion.div>
         )}
       </div>
-      <span className="font-sans text-[9px] font-medium tracking-[0.12em] uppercase leading-none">
+      <span className="font-sans text-[11px] font-medium tracking-wide uppercase leading-none mt-1">
         {item.label}
       </span>
     </button>
@@ -91,30 +91,30 @@ export function NavDock() {
     {
       id: 'fridge',
       label: 'FRIGO',
-      icon: <Refrigerator size={16} strokeWidth={1.5} />,
+      icon: <Refrigerator size={23} strokeWidth={1.5} />,
       badgeCount: criticalCount > 0 ? criticalCount : null,
     },
     {
       id: 'finance',
       label: 'FINANCE',
-      icon: <Wallet size={16} strokeWidth={1.5} />,
+      icon: <Wallet size={23} strokeWidth={1.5} />,
       badgeCount: debtCount,
     },
     {
       id: 'shopping',
       label: 'COURSES',
-      icon: <ShoppingCart size={16} strokeWidth={1.5} />,
+      icon: <ShoppingCart size={23} strokeWidth={1.5} />,
       badgeCount: pendingItems,
     },
     {
       id: 'scanner',
       label: 'SCAN',
-      icon: <Scan size={16} strokeWidth={1.5} />,
+      icon: <Scan size={23} strokeWidth={1.5} />,
     },
     {
       id: 'recipes',
       label: 'RECETTES',
-      icon: <ChefHat size={16} strokeWidth={1.5} />,
+      icon: <ChefHat size={23} strokeWidth={1.5} />,
     },
   ];
 
@@ -135,7 +135,7 @@ export function NavDock() {
       <nav
         className="fixed bottom-0 left-0 right-0 w-full z-40 pointer-events-auto
                    bg-slate-950/40 backdrop-blur-md border-t border-white/10
-                   pt-1 pb-[max(6px,calc(env(safe-area-inset-bottom,0px)-24px))] px-2"
+                   pt-2 pb-[max(14px,calc(env(safe-area-inset-bottom,0px)-6px))] px-3"
         aria-label="Navigation principale"
       >
         <motion.div
