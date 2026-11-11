@@ -77,16 +77,18 @@ const CAD_ZONE_MAP = {
   // Congélateur
   freezer_shelf: 'freezer_drawer_1',
 
-  // Porte — regroupement par hauteur réelle (haut / milieu / bas)
-  // y ≈ 1.62 → shelf_1 | y ≈ 1.37–1.49 → shelf_2 | y ≈ 0.95–1.25 → shelf_3
-  door_bin_left: 'fridge_door_shelf_1',
-  door_bin_right001: 'fridge_door_shelf_1',
-  door_bin_left001: 'fridge_door_shelf_2',
-  door_bin_right: 'fridge_door_shelf_2',
-  door_bin_right002: 'fridge_door_shelf_2',
-  door_bin_bottom: 'fridge_door_shelf_3',
-  door_bin_left002: 'fridge_door_shelf_3',
-  door_bin_right003: 'fridge_door_shelf_3',
+  // Porte — 8 bacs discrets de l'assemblage Onshape `fridge_door_assembly`
+  // Colonne gauche (3) : y local 0.447 / 0.271 / 0.083
+  door_bin_left: 'fridge_door_left_1',
+  door_bin_left001: 'fridge_door_left_2',
+  door_bin_left002: 'fridge_door_left_3',
+  // Colonne droite (4) : y local 0.472 / 0.342 / 0.212 / 0.084
+  door_bin_right001: 'fridge_door_right_1',
+  door_bin_right002: 'fridge_door_right_2',
+  door_bin_right: 'fridge_door_right_3',
+  door_bin_right003: 'fridge_door_right_4',
+  // Bac transversal bas de porte
+  door_bin_bottom: 'fridge_door_bottom',
 } as const
 
 /** Zones intérieures recevant des produits procéduraux (repère monde). */
@@ -99,9 +101,14 @@ const INTERIOR_PRODUCT_ZONES = [
 
 /** Zones de porte : repère local du pivot (rotation solidaire). */
 const DOOR_PRODUCT_ZONES = [
-  'fridge_door_shelf_1',
-  'fridge_door_shelf_2',
-  'fridge_door_shelf_3',
+  'fridge_door_left_1',
+  'fridge_door_left_2',
+  'fridge_door_left_3',
+  'fridge_door_right_1',
+  'fridge_door_right_2',
+  'fridge_door_right_3',
+  'fridge_door_right_4',
+  'fridge_door_bottom',
 ] as const
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,6 +335,10 @@ export function FridgeCAD({
   const [crisperOpen, setCrisperOpen] = useState({ left: false, right: false })
   // Zone actuellement inspectée (null = retour à la vue d'ensemble)
   const selectedMeshId = useUIStore((state) => state.selectedMeshId)
+  const setSelectedMesh = useUIStore((state) => state.setSelectedMesh)
+  const setSelectedItemId = useUIStore((state) => state.setSelectedItemId)
+  const setPanelOpen = useUIStore((state) => state.setPanelOpen)
+  const setZoneDetail = useUIStore((state) => state.setZoneDetail)
   // Verrou anti double-tap pendant l'animation de porte (~330 ms)
   const [doorAnimating, setDoorAnimating] = useState(false)
   const doorLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -607,7 +618,17 @@ export function FridgeCAD({
           // Stop strict : le rayon ne sélectionne plus la clayette derrière la porte
           e.stopPropagation()
           lockInteriorForAnimation()
-          setIsFridgeOpen((open) => !open)
+          setIsFridgeOpen((open) => {
+            // Fermeture : la zone de porte n'est plus visible → on quitte la
+            // fiche et on rend la main au cadrage d'ensemble
+            if (open) {
+              setSelectedMesh(null)
+              setSelectedItemId(null)
+              setZoneDetail(null)
+              setPanelOpen(false)
+            }
+            return !open
+          })
         }}
         onPointerOver={(e) => {
           e.stopPropagation()
