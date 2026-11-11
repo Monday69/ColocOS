@@ -1,7 +1,6 @@
 import { FridgeScene } from '@/components/canvas/FridgeScene';
 import { HudOverlay } from '@/components/ui/HudOverlay';
 import { ZoneDetailPanel } from '@/components/ui/ZoneDetailPanel';
-import { HealthLegend } from '@/components/ui/HealthLegend';
 import { NavDock } from '@/components/ui/NavDock';
 import { ToastProvider } from '@/components/ui/ToastProvider';
 import { useConnectivity } from '@/hooks/useConnectivity';
@@ -51,7 +50,6 @@ function AppContent() {
       {isFridgeTab && (
         <>
           <HudOverlay />
-          <HealthLegend />
           <ZoneDetailPanel />
         </>
       )}

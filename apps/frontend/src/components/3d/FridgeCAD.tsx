@@ -110,7 +110,7 @@ const DOOR_PRODUCT_ZONES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Teinte par statut de santé (alignée sur HealthLegend)
+// Teinte par statut de santé (alignée sur les compteurs du HUD)
 // `empty` → on restitue le matériau CAD d'origine (aucune émission).
 // ─────────────────────────────────────────────────────────────────────────────
 
