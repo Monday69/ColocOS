@@ -853,6 +853,7 @@ export function RecipeModule() {
         open={plannerOpen}
         onClose={() => setPlannerOpen(false)}
         recipes={recipeSuggestions}
+        initialTab="nutrition"
       />
 
       {/* Planification rapide d'une carte */}

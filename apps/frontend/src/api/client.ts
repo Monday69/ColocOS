@@ -9,7 +9,7 @@ import type {
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
-  LoggedMeal, LoggedMealPayload, MealDaySummary,
+  LoggedMeal, LoggedMealPayload, MealDaySummary, MealDayHistory,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -263,6 +263,8 @@ class ApiClient {
     });
   getMealsToday = (date?: string) =>
     this.request<MealDaySummary>(`/meals/today${date ? `?date=${date}` : ''}`);
+  getMealsHistory = (days = 7) =>
+    this.request<MealDayHistory[]>(`/meals/history?days=${days}`);
 
   /** Bloc 2 — convives d'un créneau (ajuste aussi les portions). */
   updateMealPlanAttendees = (id: string, attendeeIds: string[]) =>

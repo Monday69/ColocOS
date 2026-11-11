@@ -17,6 +17,8 @@ import { api } from '@/api/client'
 import { hapticSuccess, hapticTap } from '@/lib/haptics'
 import { toasts } from '@/components/ui/ToastProvider'
 import { useShoppingStore, useStore } from '@/store'
+import clsx from 'clsx'
+import { NutritionWeekPanel } from '@/components/nutrition/NutritionWeekPanel';
 import type {
   GroceryConsolidation,
   MealPlanEntry,
@@ -80,6 +82,8 @@ interface MealPlannerModalProps {
   recipes: RecipeSuggestion[]
   /** Notifié après chaque écriture (pour rafraîchir les compteurs hors modale) */
   onChanged?: () => void
+  /** Onglet ouvert par défaut : planning des repas ou journal nutritionnel */
+  initialTab?: 'planning' | 'nutrition'
 }
 
 interface PickerState {
@@ -87,7 +91,17 @@ interface PickerState {
   slot: MealSlot
 }
 
-export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlannerModalProps) {
+export function MealPlannerModal({
+  open,
+  onClose,
+  recipes,
+  onChanged,
+  initialTab = 'planning',
+}: MealPlannerModalProps) {
+  const [tab, setTab] = useState<'planning' | 'nutrition'>(initialTab);
+  useEffect(() => {
+    if (open) setTab(initialTab);
+  }, [open, initialTab]);
   const user = useStore((s) => s.user)
   const weekStart = useMemo(() => startOfWeek(), [])
   const days = useMemo(
@@ -313,6 +327,23 @@ export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlan
                 {dayLabel(days[0], 0)} → {dayLabel(days[6], 6)}
               </div>
             </div>
+
+            {/* Bascule Planning / Macros */}
+            <div className="ml-2 flex items-center gap-0.5 p-0.5 rounded-xl border border-white/10 bg-white/[0.04]">
+              {(['planning', 'nutrition'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTab(value)}
+                  className={clsx(
+                    'px-2 h-6 rounded-lg font-sans text-[9px] uppercase tracking-wider tap transition-colors',
+                    tab === value ? 'bg-cyan-400/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200',
+                  )}
+                >
+                  {value === 'planning' ? 'Planning' : 'Macros'}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             type="button"
@@ -325,7 +356,18 @@ export function MealPlannerModal({ open, onClose, recipes, onChanged }: MealPlan
         </div>
 
         {/* Contenu */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2">
+        {tab === 'nutrition' && (
+          <div className="flex-1 overflow-y-auto min-h-0 p-3 pb-24">
+            <NutritionWeekPanel />
+          </div>
+        )}
+
+        <div
+          className={clsx(
+            'flex-1 overflow-y-auto min-h-0 p-3 pb-24 space-y-2',
+            tab === 'nutrition' && 'hidden',
+          )}
+        >
           {loading && (
             <div className="flex items-center justify-center gap-2 py-10 text-slate-500">
               <Loader2 size={15} className="animate-spin" />

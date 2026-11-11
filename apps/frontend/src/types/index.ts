@@ -232,6 +232,16 @@ export interface LoggedMeal {
   items: LoggedMealItem[];
 }
 
+/** Agrégat d'une journée du journal nutritionnel. */
+export interface MealDayHistory {
+  date: string;
+  mealCount: number;
+  totalCalories: number;
+  totalProteins: number;
+  totalCarbs: number;
+  totalFat: number;
+}
+
 export interface MealDaySummary {
   date: string;
   mealCount: number;
