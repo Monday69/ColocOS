@@ -13,7 +13,7 @@ import { api } from '@/api/client'
 import { useFridgeStore } from '@/store'
 import { hapticSuccess, hapticTap } from '@/lib/haptics'
 import { toasts } from '@/components/ui/ToastProvider'
-import type { FreshCategoryId, FreshPreset } from '@/types'
+import type { FreshCategoryId, FreshPreset, StorageZoneSummary } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -161,12 +161,24 @@ function PresetTile({ preset, onSelect }: TileProps) {
 interface ConfirmSheetProps {
   preset: FreshPreset
   initialQuantity: number
+  /** Zones de destination proposées (mode stock uniquement) */
+  zones?: StorageZoneSummary[]
   onCancel: () => void
-  onConfirm: (payload: { quantity: number; isShared: boolean; expiryDate: string }) => Promise<void>
+  onConfirm: (payload: {
+    quantity: number
+    isShared: boolean
+    expiryDate: string
+    storageZoneId?: string
+  }) => Promise<void>
 }
 
-function ConfirmSheet({ preset, initialQuantity, onCancel, onConfirm }: ConfirmSheetProps) {
+function ConfirmSheet({ preset, initialQuantity, zones, onCancel, onConfirm }: ConfirmSheetProps) {
   const [quantity, setQuantity] = useState(initialQuantity)
+  // Destination : la zone suggérée par le preset, sinon la première clayette
+  const [zoneId, setZoneId] = useState<string>(() => {
+    if (!zones || zones.length === 0) return ''
+    return zones.find((z) => z.meshId === preset.zoneMeshId)?.id ?? zones[0].id
+  })
   const [isShared, setIsShared] = useState(false)
   const [expiryDate, setExpiryDate] = useState(
     preset.defaultExpiryDate || addDaysIso(isoToday(), preset.shelfLifeDays),
@@ -185,7 +197,7 @@ function ConfirmSheet({ preset, initialQuantity, onCancel, onConfirm }: ConfirmS
     if (saving) return
     setSaving(true)
     try {
-      await onConfirm({ quantity, isShared, expiryDate })
+      await onConfirm({ quantity, isShared, expiryDate, storageZoneId: zoneId || undefined })
     } finally {
       setSaving(false)
     }
@@ -277,6 +289,25 @@ function ConfirmSheet({ preset, initialQuantity, onCancel, onConfirm }: ConfirmS
         </div>
       </div>
 
+      {/* Destination (mode stock : sans code-barres, on choisit où ranger) */}
+      {zones && zones.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="label-micro">ZONE</span>
+          <select
+            value={zoneId}
+            onChange={(event) => setZoneId(event.target.value)}
+            className="max-w-[62%] bg-white/[0.04] border border-white/12 rounded-xl px-2 h-8
+                       font-mono text-[10px] text-white/85 focus:outline-none focus:ring-1 focus:ring-accent/50"
+          >
+            {zones.map((zone) => (
+              <option key={zone.id} value={zone.id} className="bg-slate-900">
+                {zone.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* DLC */}
       <div className="flex items-center justify-between gap-2">
         <span className="label-micro">PÉREMPTION</span>
@@ -322,6 +353,7 @@ export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAdd
   const [category, setCategory] = useState<FreshCategoryId | 'all'>('all')
   const [selected, setSelected] = useState<FreshPreset | null>(null)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
+  const [zones, setZones] = useState<StorageZoneSummary[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const loadCatalog = useCallback(async () => {
@@ -341,6 +373,26 @@ export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAdd
   useEffect(() => {
     if (open) void loadCatalog()
   }, [open, loadCatalog])
+
+  // Zones de destination : utiles uniquement en mode « RANGER AU FRIGO »
+  useEffect(() => {
+    if (!open || isMealMode || zones.length > 0) return
+    let cancelled = false
+    api
+      .getZones()
+      .then((all) => {
+        if (cancelled) return
+        setZones(
+          all
+            .filter((zone) => zone.type === 'fridge' && !zone.meshId.includes('door'))
+            .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+        )
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [open, isMealMode, zones.length])
 
   const presets = catalog?.presets ?? []
   const { quantity: parsedQuantity, label } = parseQuery(query)
@@ -401,17 +453,19 @@ export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAdd
     quantity: number
     isShared: boolean
     expiryDate: string
+    storageZoneId?: string
   }) => {
     if (!selected) return
     try {
       const result = await api.quickAddItem({
         name: selected.name,
-        presetId: selected.id,
+        presetId: selected.id.startsWith('custom-') ? undefined : selected.id,
         quantity: payload.quantity,
         unit: selected.unit,
         shelfLifeDays: selected.shelfLifeDays,
         isShared: payload.isShared,
         expiryDate: payload.expiryDate,
+        storageZoneId: payload.storageZoneId,
       })
 
       const fresh = await api.getFridgeState()
@@ -584,6 +638,7 @@ export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAdd
                         key={selected.id}
                         preset={selected}
                         initialQuantity={selectedQuantity}
+                        zones={isMealMode ? undefined : zones}
                         onCancel={() => setSelected(null)}
                         onConfirm={confirmAdd}
                       />
@@ -614,8 +669,8 @@ export function QuickAddDrawer({ isMealMode = false, onSelectForMeal }: QuickAdd
                                   category: 'bakery',
                                   emoji: '🛒',
                                   shelfLifeDays: 5,
-                                  zoneMeshId: 'fridge_shelf_middle',
-                                  zoneLabel: 'Étagère milieu',
+                                  zoneMeshId: 'fridge_shelf_mid_low',
+                                  zoneLabel: 'Clayette milieu bas',
                                   unit: 'unit',
                                   defaultQty: parsedQuantity ?? 1,
                                   calories: null,

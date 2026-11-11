@@ -1073,14 +1073,15 @@ export function ScannerModule() {
               </AnimatePresence>
             )}
 
+          </div>
+        )}
+
+        {/* Marché & aliments frais — disponible dans les DEUX modes :
+            « Ranger au frigo » crée l'entrée en stock sans code-barres. */}
         <QuickAddDrawer
           isMealMode={nutritionMode === 'meal'}
           onSelectForMeal={handleMealFreshItem}
         />
-
-
-          </div>
-        )}
 
         {/* Loading */}
         <AnimatePresence>

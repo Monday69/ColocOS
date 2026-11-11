@@ -97,8 +97,9 @@ const CAD_ZONE_MAP = {
 /** Zones intérieures recevant des produits procéduraux (repère monde). */
 const INTERIOR_PRODUCT_ZONES = [
   'fridge_shelf_top',
-  'fridge_shelf_middle',
-  'fridge_shelf_bottom',
+  'fridge_shelf_mid_top',
+  'fridge_shelf_mid_low',
+  'fridge_shelf_low',
   'freezer_drawer_1',
 ] as const
 
@@ -358,6 +359,8 @@ export function FridgeCAD({
   const setSelectedItemId = useUIStore((state) => state.setSelectedItemId)
   const setPanelOpen = useUIStore((state) => state.setPanelOpen)
   const setZoneDetail = useUIStore((state) => state.setZoneDetail)
+
+
 
   // Empreinte réelle de la grille du porte-bouteilles : le centre de la
   // géométrie diffère de la translation du nœud, d'où le calcul explicite.

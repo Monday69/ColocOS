@@ -5,7 +5,7 @@ import type {
   ScannedProduct, AddToInventoryPayload, RecipeSuggestion, ProductLookup,
   UserProfile, NutritionTargets, UpdateProfilePayload,
   RoommateProfile,
-  FreshCatalog, QuickAddPayload, QuickAddResult,
+  FreshCatalog, QuickAddPayload, QuickAddResult, StorageZoneSummary,
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
@@ -51,6 +51,7 @@ class ApiClient {
   // Fridge
   getFridgeState = () => this.request<FridgeStateTwin>('/fridge/state');
   getZoneDetail = (meshId: string) => this.request<ZoneDetail>(`/fridge/zones/${meshId}`);
+  getZones = () => this.request<StorageZoneSummary[]>('/fridge/zones');
 
   // Auth
   login = (email: string, password: string) => this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });

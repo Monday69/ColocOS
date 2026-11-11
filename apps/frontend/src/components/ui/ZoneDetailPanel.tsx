@@ -420,6 +420,10 @@ export function ZoneDetailPanel() {
   const { zoneDetail, isPanelOpen, isDetailLoading, closePanel, openZone } = useZoneDetail();
   const { setFridgeState } = useFridgeStore();
   const setZoneDetail = useUIStore((s) => s.setZoneDetail);
+  // Un produit sélectionné en 3D prime sur la fiche de zone : le tiroir
+  // s'escamote pour laisser place au volet détail produit (boutons de
+  // consommation), sans obliger l'utilisateur à désélectionner la clayette.
+  const selectedItemId = useUIStore((s) => s.selectedItemId);
   const [consumingId, setConsumingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -525,7 +529,7 @@ export function ZoneDetailPanel() {
           'md:absolute md:inset-x-auto md:top-0 md:right-0 md:bottom-auto md:h-full md:w-80',
           // Courbe iOS (cubic-bezier(0.32, 0.72, 0, 1)) — sortie douce, sans rebond
           'transition-transform duration-400 ease-ios',
-          isPanelOpen
+          isPanelOpen && !selectedItemId
             ? 'translate-y-0 md:translate-x-0'
             : 'translate-y-full md:translate-y-0 md:translate-x-full',
         )}

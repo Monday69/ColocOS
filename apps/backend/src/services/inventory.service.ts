@@ -620,7 +620,7 @@ export class InventoryService {
     }
 
     const middle = await prisma.storageZone.findUnique({
-      where: { meshId: 'fridge_shelf_middle' },
+      where: { meshId: 'fridge_shelf_mid_low' },
       select: { id: true, meshId: true, label: true },
     });
     if (middle) return middle;

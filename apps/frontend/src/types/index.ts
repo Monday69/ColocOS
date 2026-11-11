@@ -34,6 +34,13 @@ export interface ZoneItemTwin {
   novaGroup: number | null;
 }
 
+export interface StorageZoneSummary {
+  id: string;
+  meshId: string;
+  label: string;
+  type: string;
+}
+
 export interface ZoneTwin {
   meshId: string;
   fillRatio: number;
