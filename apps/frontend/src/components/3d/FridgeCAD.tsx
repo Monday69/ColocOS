@@ -358,6 +358,26 @@ export function FridgeCAD({
   const setSelectedItemId = useUIStore((state) => state.setSelectedItemId)
   const setPanelOpen = useUIStore((state) => state.setPanelOpen)
   const setZoneDetail = useUIStore((state) => state.setZoneDetail)
+
+  // Empreinte réelle de la grille du porte-bouteilles : le centre de la
+  // géométrie diffère de la translation du nœud, d'où le calcul explicite.
+  const rackHit = useMemo(() => {
+    const geometry = nodes.rack_bottles.geometry.clone()
+    geometry.computeBoundingBox()
+    const bounds = geometry.boundingBox
+    if (!bounds) return null
+    const center = bounds.getCenter(new THREE.Vector3())
+    const size = bounds.getSize(new THREE.Vector3())
+    return {
+      center: [center.x, center.y, center.z] as [number, number, number],
+      size: [
+        Math.max(size.x * 1.15, 0.5),
+        Math.max(size.y * 3, 0.22),
+        Math.max(size.z, 0.14),
+      ] as [number, number, number],
+    }
+  }, [nodes.rack_bottles.geometry])
+
   // Verrou anti double-tap pendant l'animation de porte (~330 ms)
   const [doorAnimating, setDoorAnimating] = useState(false)
   const doorLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -580,6 +600,33 @@ export function FridgeCAD({
       {zoneMesh('shelf002', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.51, -0.116])}
       {zoneMesh('shelf003', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.228, -0.116])}
       {zoneMesh('rack_bottles', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-1.08, 0.523, -0.704])}
+      {/* Hit-box du porte-bouteilles : la grille ondulée est un maillage à
+          claire-voie (le rayon passe entre les tiges). Cette boîte solide,
+          invisible mais `visible={true}`, épouse son empreinte et se place
+          2 cm devant les proxies des bacs pour gagner le test de profondeur. */}
+      {rackHit && (
+      <mesh
+        position={[
+          -1.08 + rackHit.center[0],
+          0.523 + rackHit.center[1],
+          -0.704 + rackHit.center[2] + 0.02,
+        ]}
+        onClick={(event) => {
+          event.stopPropagation()
+          handleZoneSelect('fridge_rack_bottles')
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          document.body.style.cursor = 'pointer'
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'default'
+        }}
+      >
+        <boxGeometry args={rackHit.size} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      )}
       {zoneMesh('freezer_shelf', materials['0.917647_0.917647_0.917647_0.000000_0.000000'], [-3.496, 2.021, 1.057])}
       {/* Zones de clic des bacs (invisibles, devant le meuble) */}
       <CrisperHitProxy

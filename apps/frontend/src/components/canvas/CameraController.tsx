@@ -84,8 +84,8 @@ const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
     position: [-0.84, 1.35, 2.0],
   },
   fridge_rack_bottles: {
-    target: [-0.84, 0.95, -0.55],
-    position: [-0.84, 1.25, 1.65],
+    target: [-0.84, 1.32, -0.45],
+    position: [-0.84, 1.62, 1.55],
   },
   fridge_shelf_top: {
     target: [-0.84, 1.51, -0.5],
