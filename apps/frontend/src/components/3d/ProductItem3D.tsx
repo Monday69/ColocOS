@@ -29,9 +29,9 @@ const ITEM_W = 0.07
 const ITEM_H = 0.14
 const ITEM_D = 0.07
 const ITEM_GAP = 0.015
-/** Rehausse au-dessus de la face supérieure : évite l'enfoncement dans la
- *  vitre et garantit la visibilité de face comme en zoom. */
-const ITEM_FLOOR_LIFT = 0.03
+/** Tolérance de contact : 1,5 mm au-dessus de la face supérieure, juste assez
+ *  pour éviter le Z-fighting avec le verre — aucun effet de lévitation. */
+const ITEM_FLOOR_LIFT = 0.0015
 /** Budget maximal d'attente d'une photo produit distante. */
 export const TEXTURE_TIMEOUT_MS = 3000
 /** Marge par rapport au bord avant de la clayette. */
@@ -503,8 +503,9 @@ function computeLayout(bounds: THREE.Box3, items: ZoneItemTwin[]): Placed[] {
   const startZ = bounds.min.z + (size.z - gridD) / 2 + ITEM_D / 2
   const maxZ = bounds.max.z - ITEM_D / 2 - Z_FRONT_MARGIN
 
-  // Le packaging repose sur la face SUPÉRIEURE + une rehausse de 3 cm : la
-  // clayette est une dalle horizontale, quelle que soit son épaisseur.
+  // Le packaging repose au contact de la face SUPÉRIEURE de la clayette.
+  // La géométrie est centrée en local ([-H/2, +H/2]), donc le centre se place
+  // à floorY + ITEM_H / 2 : la base touche exactement la surface.
   const floorY = bounds.max.y + ITEM_FLOOR_LIFT
 
   const perLayer = cols * rows

@@ -100,6 +100,7 @@ const INTERIOR_PRODUCT_ZONES = [
   'fridge_shelf_mid_top',
   'fridge_shelf_mid_low',
   'fridge_shelf_low',
+  'fridge_shelf_crisper_cover',
   'freezer_drawer_1',
 ] as const
 
@@ -363,6 +364,8 @@ export function FridgeCAD({
   // packagings doivent être à leur position finale — pas de cascade en retard
   // quand l'utilisateur zoome pendant les 4 s d'introduction.
   const itemsIntroActive = introActive && !selectedMeshId
+
+
 
 
 
