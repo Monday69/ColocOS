@@ -359,6 +359,10 @@ export function FridgeCAD({
   const setSelectedItemId = useUIStore((state) => state.setSelectedItemId)
   const setPanelOpen = useUIStore((state) => state.setPanelOpen)
   const setZoneDetail = useUIStore((state) => state.setZoneDetail)
+  // Bypass de l'intro : dès qu'une zone ou un produit est sélectionné, les
+  // packagings doivent être à leur position finale — pas de cascade en retard
+  // quand l'utilisateur zoome pendant les 4 s d'introduction.
+  const itemsIntroActive = introActive && !selectedMeshId
 
 
 
@@ -636,33 +640,33 @@ export function FridgeCAD({
         zoneId="fridge_crisper_left"
         onSelect={handleZoneSelect}
         enabled={interiorInteractive}
-        introActive={introActive}
+        introActive={itemsIntroActive}
       />
       <CrisperHitProxy
         zoneId="fridge_crisper_right"
         onSelect={handleZoneSelect}
         enabled={interiorInteractive}
-        introActive={introActive}
+        introActive={itemsIntroActive}
       />
 
       {/* Bacs à légumes coulissants : le mesh ET son contenu avancent ensemble */}
       <group ref={crisperLeftRef} name="crisper:left">
         {zoneMesh('drawer_crisper_left', materials['0.615686_0.811765_0.929412_0.000000_0.000000'], [-3.123, 0.666, -1.487])}
         <group visible={isFridgeOpen}>
-          <ZoneProducts zoneId="fridge_crisper_left" items={zoneItems('fridge_crisper_left')} introActive={introActive} />
+          <ZoneProducts zoneId="fridge_crisper_left" items={zoneItems('fridge_crisper_left')} introActive={itemsIntroActive} />
         </group>
       </group>
       <group ref={crisperRightRef} name="crisper:right">
         {zoneMesh('drawer_crisper_right', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-3.125, 0.666, -1.487])}
         <group visible={isFridgeOpen}>
-          <ZoneProducts zoneId="fridge_crisper_right" items={zoneItems('fridge_crisper_right')} introActive={introActive} />
+          <ZoneProducts zoneId="fridge_crisper_right" items={zoneItems('fridge_crisper_right')} introActive={itemsIntroActive} />
         </group>
       </group>
 
       {/* ── Produits réels (packagings) sur les zones intérieures ───────── */}
       {INTERIOR_PRODUCT_ZONES.map((zoneId) => (
         <group key={zoneId} visible={isFridgeOpen}>
-          <ZoneProducts zoneId={zoneId} items={zoneItems(zoneId)} introActive={introActive} />
+          <ZoneProducts zoneId={zoneId} items={zoneItems(zoneId)} introActive={itemsIntroActive} />
         </group>
       ))}
 
@@ -733,7 +737,7 @@ export function FridgeCAD({
               zoneId={zoneId}
               items={zoneItems(zoneId)}
               relativeToRef={doorContentRef}
-              introActive={introActive}
+              introActive={itemsIntroActive}
             />
           ))}
         </group>

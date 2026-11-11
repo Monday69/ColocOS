@@ -341,6 +341,9 @@ export class StorageService {
       where: { meshId },
       include: {
         items: {
+          // Un article consommé (soft-delete) ne doit plus apparaître dans la
+          // fiche de zone : le jumeau numérique et le HUD l'excluent déjà.
+          where: { consumedAt: null },
           include: {
             owner: {
               select: { id: true, name: true, colorHex: true },

@@ -29,6 +29,13 @@ const ITEM_W = 0.07
 const ITEM_H = 0.14
 const ITEM_D = 0.07
 const ITEM_GAP = 0.015
+/** Rehausse au-dessus de la face supérieure : évite l'enfoncement dans la
+ *  vitre et garantit la visibilité de face comme en zoom. */
+const ITEM_FLOOR_LIFT = 0.03
+/** Marge par rapport au bord avant de la clayette. */
+const Z_FRONT_MARGIN = 0.04
+/** Décalage vers l'avant pour dégager les packagings du fond du meuble. */
+const Z_FORWARD_BIAS = 0.05
 
 // ── Couleurs émissives statiques ──────────────────────────────────────────────
 // Instanciées une seule fois au chargement du module : la boucle `useFrame` ne
@@ -472,14 +479,19 @@ function computeLayout(bounds: THREE.Box3, items: ZoneItemTwin[]): Placed[] {
   const cols = Math.max(1, Math.floor(Math.max(size.x, ITEM_W) / pitchX))
   const rows = Math.max(1, Math.floor(Math.max(size.z, ITEM_D) / pitchZ))
 
-  // Grille centrée dans la zone
+  // Grille centrée sur l'axe X
   const gridW = cols * pitchX - ITEM_GAP
-  const gridD = rows * pitchZ - ITEM_GAP
   const startX = bounds.min.x + (size.x - gridW) / 2 + ITEM_W / 2
-  const startZ = bounds.min.z + (size.z - gridD) / 2 + ITEM_D / 2
 
-  const floorY =
-    size.y < 0.05 ? bounds.max.y : bounds.min.y
+  // Grille centrée en Z, puis avancée vers la caméra (bord avant) et bornée
+  // pour ne jamais sortir de la clayette.
+  const gridD = rows * pitchZ - ITEM_GAP
+  const startZ = bounds.min.z + (size.z - gridD) / 2 + ITEM_D / 2
+  const maxZ = bounds.max.z - ITEM_D / 2 - Z_FRONT_MARGIN
+
+  // Le packaging repose sur la face SUPÉRIEURE + une rehausse de 3 cm : la
+  // clayette est une dalle horizontale, quelle que soit son épaisseur.
+  const floorY = bounds.max.y + ITEM_FLOOR_LIFT
 
   const perLayer = cols * rows
   const maxItems = Math.min(items.length, perLayer * 2)
@@ -496,7 +508,7 @@ function computeLayout(bounds: THREE.Box3, items: ZoneItemTwin[]): Placed[] {
       position: [
         startX + col * pitchX,
         floorY + ITEM_H / 2 + layer * (ITEM_H + 0.01),
-        startZ + row * pitchZ,
+        Math.min(startZ + row * pitchZ + Z_FORWARD_BIAS, maxZ),
       ] as [number, number, number],
     }
   })
