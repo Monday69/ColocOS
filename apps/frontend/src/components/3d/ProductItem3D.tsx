@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { getZoneBounds } from '@/lib/zoneRegistry'
+import { getZoneBounds, onZoneRegistered } from '@/lib/zoneRegistry'
 import { getExpiryStatus, getExpiryStatusFromDays, EXPIRY_COLORS } from '@/lib/expiry'
 import { useUIStore } from '@/store'
 import { ProductTooltip } from './ProductTooltip'
@@ -38,8 +38,6 @@ export const TEXTURE_TIMEOUT_MS = 3000
 const Z_FRONT_MARGIN = 0.04
 /** Décalage vers l'avant pour dégager les packagings du fond du meuble. */
 const Z_FORWARD_BIAS = 0.05
-/** Fenêtre de recherche des bornes de zone avant de renoncer (ms). */
-const PLACEMENT_TIMEOUT_MS = 10000
 
 // ── Couleurs émissives statiques ──────────────────────────────────────────────
 // Instanciées une seule fois au chargement du module : la boucle `useFrame` ne
@@ -539,30 +537,32 @@ export function ZoneProducts({ zoneId, items, relativeToRef, introActive = false
     }
 
     let cancelled = false
-    const startedAt = performance.now()
 
-    // Les meshes de zone sont enregistrés au montage du GLB : on réessaie tant
-    // que les bornes manquent. Aucun abandon définitif — sinon le placement
-    // attendait le prochain poll `/fridge/state` (jusqu'à 30 s).
-    const tryCompute = () => {
-      if (cancelled) return
-
+    // Calcul synchrone si la géométrie est déjà là ; sinon on s'abonne au
+    // registre pour être réveillé dès l'enregistrement du mesh GLTF.
+    // Plus aucun setTimeout, plus aucune dépendance au cycle réseau.
+    const compute = () => {
+      if (cancelled) return false
       const bounds = getZoneBounds(zoneId, relativeToRef?.current ?? null)
-      if (!bounds || bounds.isEmpty()) {
-        if (performance.now() - startedAt > PLACEMENT_TIMEOUT_MS) return
-        window.setTimeout(tryCompute, 120)
-        return
-      }
-
+      if (!bounds || bounds.isEmpty()) return false
       setPlaced(computeLayout(bounds, items))
+      return true
     }
 
-    tryCompute()
+    if (!compute()) {
+      const unsubscribe = onZoneRegistered(zoneId, () => {
+        if (compute()) unsubscribe()
+      })
+      return () => {
+        cancelled = true
+        unsubscribe()
+      }
+    }
 
     return () => {
       cancelled = true
     }
-  }, [zoneId, items, relativeToRef])
+  }, [zoneId, items, relativeToRef, introActive])
 
   return (
     <group name={`products:${zoneId}`}>

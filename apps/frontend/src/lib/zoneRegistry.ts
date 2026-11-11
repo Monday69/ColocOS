@@ -9,12 +9,31 @@ import * as THREE from 'three'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const zoneObjects = new Map<string, Set<THREE.Object3D>>()
+const listeners = new Map<string, Set<() => void>>()
+
+/**
+ * S'abonne à l'enregistrement d'une zone : le layout des packagings se calcule
+ * à l'instant exact où le mesh GLTF devient disponible (aucun polling).
+ */
+export function onZoneRegistered(zoneId: string, callback: () => void): () => void {
+  const set = listeners.get(zoneId) ?? new Set<() => void>()
+  listeners.set(zoneId, set)
+  set.add(callback)
+
+  return () => {
+    set.delete(callback)
+    if (set.size === 0) listeners.delete(zoneId)
+  }
+}
 
 /** Enregistre un mesh pour une zone. Retourne la fonction de désinscription. */
 export function registerZoneObject(zoneId: string, object: THREE.Object3D): () => void {
   const set = zoneObjects.get(zoneId) ?? new Set<THREE.Object3D>()
   zoneObjects.set(zoneId, set)
   set.add(object)
+
+  // Réveille les abonnés : la géométrie vient d'arriver
+  listeners.get(zoneId)?.forEach((callback) => callback())
 
   return () => {
     set.delete(object)
