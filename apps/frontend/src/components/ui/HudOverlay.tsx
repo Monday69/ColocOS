@@ -139,7 +139,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.16-products-visibility-fix
+          v2.17-instant-products-render
         </span>
       </div>
 

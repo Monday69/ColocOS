@@ -32,10 +32,14 @@ const ITEM_GAP = 0.015
 /** Rehausse au-dessus de la face supérieure : évite l'enfoncement dans la
  *  vitre et garantit la visibilité de face comme en zoom. */
 const ITEM_FLOOR_LIFT = 0.03
+/** Budget maximal d'attente d'une photo produit distante. */
+export const TEXTURE_TIMEOUT_MS = 3000
 /** Marge par rapport au bord avant de la clayette. */
 const Z_FRONT_MARGIN = 0.04
 /** Décalage vers l'avant pour dégager les packagings du fond du meuble. */
 const Z_FORWARD_BIAS = 0.05
+/** Fenêtre de recherche des bornes de zone avant de renoncer (ms). */
+const PLACEMENT_TIMEOUT_MS = 10000
 
 // ── Couleurs émissives statiques ──────────────────────────────────────────────
 // Instanciées une seule fois au chargement du module : la boucle `useFrame` ne
@@ -97,6 +101,13 @@ function useProductTexture(url: string | null | undefined): THREE.Texture | null
     const loader = new THREE.TextureLoader()
     loader.setCrossOrigin('anonymous')
 
+    // Garde-fou : une photo OpenFoodFacts lente (tunnel mobile) ne doit pas
+    // retarder l'affichage. Passé 3 s on garde définitivement le carton.
+    const timeout = window.setTimeout(() => {
+      cancelled = true
+      setTexture(null)
+    }, TEXTURE_TIMEOUT_MS)
+
     loader.load(
       url,
       (tex) => {
@@ -104,6 +115,7 @@ function useProductTexture(url: string | null | undefined): THREE.Texture | null
           tex.dispose()
           return
         }
+        window.clearTimeout(timeout)
         tex.colorSpace = THREE.SRGBColorSpace
         disposePrevious()
         textureRef.current = tex
@@ -112,12 +124,14 @@ function useProductTexture(url: string | null | undefined): THREE.Texture | null
       undefined,
       () => {
         // CORS / 404 / réseau : fallback silencieux sur le carton
+        window.clearTimeout(timeout)
         if (!cancelled) setTexture(null)
       },
     )
 
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
     }
   }, [url])
 
@@ -523,16 +537,19 @@ export function ZoneProducts({ zoneId, items, relativeToRef, introActive = false
       return
     }
 
-    let frame = 0
     let cancelled = false
+    const startedAt = performance.now()
 
-    // Les meshes de zone sont enregistrés au montage : on attend qu'ils le soient
+    // Les meshes de zone sont enregistrés au montage du GLB : on réessaie tant
+    // que les bornes manquent. Aucun abandon définitif — sinon le placement
+    // attendait le prochain poll `/fridge/state` (jusqu'à 30 s).
     const tryCompute = () => {
       if (cancelled) return
 
       const bounds = getZoneBounds(zoneId, relativeToRef?.current ?? null)
-      if (!bounds) {
-        if (frame++ < 180) requestAnimationFrame(tryCompute)
+      if (!bounds || bounds.isEmpty()) {
+        if (performance.now() - startedAt > PLACEMENT_TIMEOUT_MS) return
+        window.setTimeout(tryCompute, 120)
         return
       }
 
