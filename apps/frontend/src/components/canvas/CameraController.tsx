@@ -308,7 +308,7 @@ export function CameraController({
   }, [zoneId, itemId])
 
   // ── Secousse d'impact : micro-vibration amortie (200 ms après le slam)
-  const IMPACT_AT = 1.15
+  const IMPACT_AT = 2.05
   const SHAKE_MS = 0.2
 
   useFrame(() => {

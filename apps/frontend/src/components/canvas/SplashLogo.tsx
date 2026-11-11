@@ -17,8 +17,8 @@ interface SplashLogoProps {
   onDone?: () => void;
 }
 
-const CRUSH_AT_MS = 1150;
-const REMOVE_AT_MS = 1400;
+const CRUSH_AT_MS = 2050;
+const REMOVE_AT_MS = 2300;
 
 export function SplashLogo({ startedAt, active, onDone }: SplashLogoProps) {
   const [crushed, setCrushed] = useState(false);

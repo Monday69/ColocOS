@@ -19,6 +19,8 @@ const LEGEND_ITEMS = [
  */
 export function HealthLegend() {
   const isIntroActive = useUIStore((s) => s.isIntroActive);
+  const introUiReady = useUIStore((s) => s.introUiReady);
+  const uiHidden = isIntroActive && !introUiReady;
   const activeModule = useNavStore((s) => s.activeModule);
   const selectedMeshId = useUIStore((s) => s.selectedMeshId);
   const selectedItemId = useUIStore((s) => s.selectedItemId);
@@ -31,7 +33,7 @@ export function HealthLegend() {
   return (
     <div
       className={`absolute left-4 bottom-[var(--legend-bottom)] md:bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] pointer-events-none select-none z-10 transition-opacity duration-500 ${
-        isIntroActive ? 'opacity-0' : 'opacity-100'
+        uiHidden ? 'opacity-0' : 'opacity-100'
       }`}
       style={{ '--legend-bottom': 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' } as CSSProperties}
     >

@@ -35,28 +35,38 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
   const setIntroActive = useUIStore((s) => s.setIntroActive);
   const introStartedAt = useUIStore((s) => s.introStartedAt);
   const setIntroStartedAt = useUIStore((s) => s.setIntroStartedAt);
+  const setIntroUiReady = useUIStore((s) => s.setIntroUiReady);
   const introPlayed = useRef(false);
   const introTimer = useRef<number | null>(null);
+  const uiTimer = useRef<number | null>(null);
 
   const endIntro = useCallback(() => {
     if (introTimer.current) {
       window.clearTimeout(introTimer.current);
       introTimer.current = null;
     }
+    if (uiTimer.current) {
+      window.clearTimeout(uiTimer.current);
+      uiTimer.current = null;
+    }
+    setIntroUiReady(true);
     setIntroActive(false);
-  }, [setIntroActive]);
+  }, [setIntroActive, setIntroUiReady]);
 
   useEffect(() => {
     if (!active || introPlayed.current) return;
     introPlayed.current = true;
     setIntroStartedAt(performance.now());
+    setIntroUiReady(false);
     setIntroActive(true);
-    // 2,6 s : fin de la cascada → fondu UI 500 ms jusqu'à 3,1 s
-    introTimer.current = window.setTimeout(endIntro, 2600);
+    // 3,5 s : fondu de l'UI (500 ms) — 4,0 s : contrôles rendus à l'utilisateur
+    uiTimer.current = window.setTimeout(() => setIntroUiReady(true), 3500);
+    introTimer.current = window.setTimeout(endIntro, 4000);
     return () => {
       if (introTimer.current) window.clearTimeout(introTimer.current);
+      if (uiTimer.current) window.clearTimeout(uiTimer.current);
     };
-  }, [active, endIntro, setIntroActive, setIntroStartedAt]);
+  }, [active, endIntro, setIntroActive, setIntroStartedAt, setIntroUiReady]);
 
   // Raccourci clavier Échap : ferme le tooltip produit, sinon quitte le focus de zone
   useEffect(() => {

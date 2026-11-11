@@ -335,15 +335,15 @@ export function FridgeCAD({
   // Intro : la porte s'ouvre une fois le meuble stabilisé (≈1,3 s)
   useEffect(() => {
     if (!introActive) return
-    const timer = window.setTimeout(() => setIsFridgeOpen(true), 1300)
+    const timer = window.setTimeout(() => setIsFridgeOpen(true), 2250)
     return () => window.clearTimeout(timer)
   }, [introActive])
 
   // Chute du meuble : 4 m → 0 (easeInQuad), puis rebond amorti de 8 cm
   const slamRef = useRef<THREE.Group>(null)
-  const SLAM_START = 0.9
-  const SLAM_IMPACT = 1.15
-  const SLAM_REST = 1.35
+  const SLAM_START = 1.8
+  const SLAM_IMPACT = 2.05
+  const SLAM_REST = 2.25
   const SLAM_HEIGHT = 4
 
   useFrame(() => {
@@ -529,7 +529,9 @@ export function FridgeCAD({
   }
 
   return (
-    <group ref={slamRef} {...props} dispose={null}>
+    // Meuble décalé sur la droite de l'écran (+10 cm) : la chute et le rebond
+    // n'animent que l'axe Y, le décalage X reste constant.
+    <group ref={slamRef} {...props} dispose={null} position={[0.1, 0, 0]}>
       {/* ── 1. Caisson fixe & aménagement intérieur ─────────────────────── */}
       <mesh geometry={nodes.fridge_body.geometry} material={materials['0.615686_0.811765_0.929412_0.000000_0.000000']} position={[-0.48, 0.506, -0.191]} />
       <mesh

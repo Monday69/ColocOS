@@ -117,11 +117,13 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
   const showFridgeStats = useNavStore((s) => s.activeModule) === 'fridge';
   // Intro cinématique : le HUD apparaît en fondu à la fin de la séquence
   const isIntroActive = useUIStore((s) => s.isIntroActive);
+  const introUiReady = useUIStore((s) => s.introUiReady);
+  const uiHidden = isIntroActive && !introUiReady;
 
   return (
     <div
       className={`absolute top-[calc(env(safe-area-inset-top,47px)+16px)] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10 transition-opacity duration-500 ${
-        isIntroActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        uiHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
@@ -137,7 +139,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.8-fridge-slam
+          v2.9-slam-tuning
         </span>
       </div>
 

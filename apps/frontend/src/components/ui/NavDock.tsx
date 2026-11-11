@@ -80,6 +80,8 @@ function NavTab({
 export function NavDock() {
   const { activeModule, setActiveModule } = useNavStore();
   const isIntroActive = useUIStore((s) => s.isIntroActive);
+  const introUiReady = useUIStore((s) => s.introUiReady);
+  const uiHidden = isIntroActive && !introUiReady;
   const { fridgeState } = useFridgeStore();
   const { financeStatus } = useFinanceStore();
   const { shoppingList } = useShoppingStore();
@@ -137,7 +139,7 @@ export function NavDock() {
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
         className={`fixed inset-x-0 bottom-0 w-full z-40 pointer-events-auto transition-opacity duration-500 ${
-          isIntroActive ? 'opacity-0' : 'opacity-100'
+          uiHidden ? 'opacity-0' : 'opacity-100'
         } bg-slate-950/60 backdrop-blur-md border-t border-white/10 px-3 flex items-center justify-around`}
         aria-label="Navigation principale"
         // Le conteneur touche le bord physique : le padding bas repousse les

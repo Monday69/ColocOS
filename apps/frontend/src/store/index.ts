@@ -41,6 +41,9 @@ type ColocOSStore = {
   /** `performance.now()` au démarrage : pilote les phases du « fridge slam » */
   introStartedAt: number | null;
   setIntroStartedAt: (at: number | null) => void;
+  /** UI libérée (3,5 s) alors que l'intro court jusqu'à 4,0 s */
+  introUiReady: boolean;
+  setIntroUiReady: (ready: boolean) => void;
   setSelectedMesh: (meshId: string | null) => void;
   setHoveredMesh: (meshId: string | null) => void;
   setZoneDetail: (detail: ZoneDetail | null) => void;
@@ -110,6 +113,8 @@ export const useStore = create<ColocOSStore>()(
         setIntroActive: (active) => set({ isIntroActive: active }, false, 'ui/setIntroActive'),
         introStartedAt: null,
         setIntroStartedAt: (at) => set({ introStartedAt: at }, false, 'ui/setIntroStartedAt'),
+        introUiReady: false,
+        setIntroUiReady: (ready) => set({ introUiReady: ready }, false, 'ui/setIntroUiReady'),
         // Changer de zone ferme le tooltip produit (le mesh n'est plus à l'écran)
         setSelectedMesh: (meshId) => set({ selectedMeshId: meshId, selectedItemId: null }, false, 'ui/setSelectedMesh'),
         setHoveredMesh: (meshId) => set({ hoveredMeshId: meshId }, false, 'ui/setHoveredMesh'),
