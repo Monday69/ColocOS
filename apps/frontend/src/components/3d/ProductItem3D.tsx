@@ -543,8 +543,8 @@ export function ZoneProducts({ zoneId, items, relativeToRef, introActive = false
           position={position}
           zoneId={zoneId}
           introActive={introActive}
-          // Cascade : 0,8 s de base + 70 ms par aliment
-          introDelay={0.8 + index * 0.07}
+          // Cascade : après le slam (1,35 s) + 70 ms par aliment
+          introDelay={1.35 + index * 0.07}
         />
       ))}
     </group>

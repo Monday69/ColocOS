@@ -309,12 +309,15 @@ export type FridgeCADProps = JSX.IntrinsicElements['group'] & {
   onZoneSelect?: (zoneId: string) => void
   /** Intro cinématique : porte qui s'ouvre seule + aliments en cascade */
   introActive?: boolean
+  /** `performance.now()` du départ : pilote la chute et le rebond du meuble */
+  introStartedAt?: number | null
 }
 
 export function FridgeCAD({
   fridgeState = null,
   onZoneSelect = () => {},
   introActive = false,
+  introStartedAt = null,
   ...props
 }: FridgeCADProps) {
   const { nodes, materials } = useGLTF('/models/fridge.glb') as GLTFResult
@@ -329,12 +332,52 @@ export function FridgeCAD({
   const [doorAnimating, setDoorAnimating] = useState(false)
   const doorLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Intro : ouverture douce de la porte, amortie par la boucle useFrame
+  // Intro : la porte s'ouvre une fois le meuble stabilisé (≈1,3 s)
   useEffect(() => {
     if (!introActive) return
-    const timer = window.setTimeout(() => setIsFridgeOpen(true), 180)
+    const timer = window.setTimeout(() => setIsFridgeOpen(true), 1300)
     return () => window.clearTimeout(timer)
   }, [introActive])
+
+  // Chute du meuble : 4 m → 0 (easeInQuad), puis rebond amorti de 8 cm
+  const slamRef = useRef<THREE.Group>(null)
+  const SLAM_START = 0.9
+  const SLAM_IMPACT = 1.15
+  const SLAM_REST = 1.35
+  const SLAM_HEIGHT = 4
+
+  useFrame(() => {
+    const group = slamRef.current
+    if (!group) return
+
+    if (!introActive || introStartedAt === null) {
+      group.position.y = 0
+      return
+    }
+
+    const elapsed = (performance.now() - introStartedAt) / 1000
+
+    if (elapsed < SLAM_START) {
+      group.position.y = SLAM_HEIGHT
+      return
+    }
+
+    if (elapsed < SLAM_IMPACT) {
+      // easeInQuad : la chute accélère sous l'effet de la gravité
+      const progress = (elapsed - SLAM_START) / (SLAM_IMPACT - SLAM_START)
+      group.position.y = SLAM_HEIGHT * (1 - progress * progress)
+      return
+    }
+
+    if (elapsed < SLAM_REST) {
+      // Rebond mécanique : +8 cm puis retour au sol, amorti
+      const progress = (elapsed - SLAM_IMPACT) / (SLAM_REST - SLAM_IMPACT)
+      group.position.y = 0.08 * Math.sin(Math.PI * progress) * (1 - progress)
+      return
+    }
+
+    group.position.y = 0
+  })
 
   const fridgePivotRef = useRef<THREE.Group>(null)
   const freezerPivotRef = useRef<THREE.Group>(null)
@@ -486,7 +529,7 @@ export function FridgeCAD({
   }
 
   return (
-    <group {...props} dispose={null}>
+    <group ref={slamRef} {...props} dispose={null}>
       {/* ── 1. Caisson fixe & aménagement intérieur ─────────────────────── */}
       <mesh geometry={nodes.fridge_body.geometry} material={materials['0.615686_0.811765_0.929412_0.000000_0.000000']} position={[-0.48, 0.506, -0.191]} />
       <mesh

@@ -137,7 +137,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.7-intro-cinematic
+          v2.8-fridge-slam
         </span>
       </div>
 

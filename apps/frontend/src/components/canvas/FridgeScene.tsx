@@ -12,6 +12,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { FridgeCAD } from '@/components/3d/FridgeCAD';
 import { ProductQuickAction } from '@/components/3d/ProductTooltip';
 import { CameraController } from './CameraController';
+import { SplashLogo } from './SplashLogo';
 import { useFridgeState } from '@/hooks/useFridgeState';
 import { useZoneDetail } from '@/hooks/useZoneDetail';
 import { useUIStore } from '@/store';
@@ -32,6 +33,8 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
   // ── Intro cinématique (2,6 s, skippable au premier tap) ──────────────────
   const isIntroActive = useUIStore((s) => s.isIntroActive);
   const setIntroActive = useUIStore((s) => s.setIntroActive);
+  const introStartedAt = useUIStore((s) => s.introStartedAt);
+  const setIntroStartedAt = useUIStore((s) => s.setIntroStartedAt);
   const introPlayed = useRef(false);
   const introTimer = useRef<number | null>(null);
 
@@ -46,12 +49,14 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
   useEffect(() => {
     if (!active || introPlayed.current) return;
     introPlayed.current = true;
+    setIntroStartedAt(performance.now());
     setIntroActive(true);
+    // 2,6 s : fin de la cascada → fondu UI 500 ms jusqu'à 3,1 s
     introTimer.current = window.setTimeout(endIntro, 2600);
     return () => {
       if (introTimer.current) window.clearTimeout(introTimer.current);
     };
-  }, [active, endIntro, setIntroActive]);
+  }, [active, endIntro, setIntroActive, setIntroStartedAt]);
 
   // Raccourci clavier Échap : ferme le tooltip produit, sinon quitte le focus de zone
   useEffect(() => {
@@ -77,6 +82,8 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
         if (isIntroActive) endIntro();
       }}
     >
+      <SplashLogo active={isIntroActive} startedAt={introStartedAt} />
+
       <Canvas
         shadows
         // Hors onglet frigo : aucune frame n'est rendue (économie GPU/batterie)
@@ -162,6 +169,7 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
             fridgeState={fridgeState}
             onZoneSelect={openZone}
             introActive={isIntroActive}
+            introStartedAt={introStartedAt}
           />
         </Suspense>
 
@@ -189,6 +197,7 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
           selectedItemId={selectedItemId}
           controlsRef={controlsRef}
           introActive={isIntroActive}
+          introStartedAt={introStartedAt}
         />
 
         <Environment preset="warehouse" environmentIntensity={0.22} />

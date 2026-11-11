@@ -11,6 +11,8 @@ interface CameraControllerProps {
   controlsRef: React.RefObject<OrbitControlsImpl>
   /** Intro : départ caméra décalé, glissement amorti vers le cadrage par défaut */
   introActive?: boolean
+  /** `performance.now()` du départ : pilote la secousse d'impact */
+  introStartedAt?: number | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,7 +172,13 @@ function framingForItem(
   }
 }
 
-export function CameraController({ selectedZoneId, selectedItemId, controlsRef, introActive = false }: CameraControllerProps) {
+export function CameraController({
+  selectedZoneId,
+  selectedItemId,
+  controlsRef,
+  introActive = false,
+  introStartedAt = null,
+}: CameraControllerProps) {
   const scene = useThree((state) => state.scene)
   const camera = useThree((state) => state.camera)
   const isTransitioning = useRef(false)
@@ -298,6 +306,26 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef, 
     }, 250)
     return () => window.clearTimeout(id)
   }, [zoneId, itemId])
+
+  // ── Secousse d'impact : micro-vibration amortie (200 ms après le slam)
+  const IMPACT_AT = 1.15
+  const SHAKE_MS = 0.2
+
+  useFrame(() => {
+    const cam = camera as THREE.PerspectiveCamera
+    if (!introActive || introStartedAt === null) {
+      if (cam.rotation.z !== 0) cam.rotation.z = 0
+      return
+    }
+    const since = (performance.now() - introStartedAt) / 1000 - IMPACT_AT
+    if (since < 0 || since > SHAKE_MS) {
+      if (cam.rotation.z !== 0) cam.rotation.z = 0
+      return
+    }
+    const decay = 1 - since / SHAKE_MS
+    cam.position.y += Math.sin(since * 95) * 0.045 * decay
+    cam.rotation.z = Math.sin(since * 70) * 0.018 * decay
+  })
 
   useFrame((state, delta) => {
     if (!controlsRef.current || !isTransitioning.current) return
