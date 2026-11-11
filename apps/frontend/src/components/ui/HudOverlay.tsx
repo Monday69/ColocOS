@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, CloudOff, BellRing, BellOff, Loader2, UserRound } from 'lucide-react';
 import clsx from 'clsx';
-import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue, useNavStore } from '@/store';
+import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue, useNavStore, useUIStore } from '@/store';
 import { HEALTH_COLORS } from '@/lib/healthColors';
 import { toasts } from '@/components/ui/ToastProvider';
 import { UserProfileModal } from '@/components/ui/UserProfileModal';
@@ -115,9 +115,15 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
   // COURSES / RECETTES, la barre libère la place au formulaire (le bouton mute,
   // lui, reste accessible).
   const showFridgeStats = useNavStore((s) => s.activeModule) === 'fridge';
+  // Intro cinématique : le HUD apparaît en fondu à la fin de la séquence
+  const isIntroActive = useUIStore((s) => s.isIntroActive);
 
   return (
-    <div className="absolute top-[calc(env(safe-area-inset-top,47px)+16px)] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10">
+    <div
+      className={`absolute top-[calc(env(safe-area-inset-top,47px)+16px)] left-[calc(1rem+env(safe-area-inset-left,0px))] flex flex-col gap-2 select-none z-10 transition-opacity duration-500 ${
+        isIntroActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}
+    >
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
       <div className="flex items-baseline gap-2 pointer-events-none">
         <span className="font-display text-2xl font-black tracking-wider text-white">COLOC</span>
@@ -131,7 +137,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.6-semainier-macros
+          v2.7-intro-cinematic
         </span>
       </div>
 

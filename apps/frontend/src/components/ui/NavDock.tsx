@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Refrigerator, Wallet, ShoppingCart, Scan, ChefHat } from 'lucide-react';
 import clsx from 'clsx';
-import { useNavStore, useFridgeStore, useFinanceStore, useShoppingStore } from '@/store';
+import { useNavStore, useFridgeStore, useFinanceStore, useShoppingStore, useUIStore } from '@/store';
 import { hapticTap } from '@/lib/haptics';
 import type { AppModule } from '@/types';
 
@@ -79,6 +79,7 @@ function NavTab({
 
 export function NavDock() {
   const { activeModule, setActiveModule } = useNavStore();
+  const isIntroActive = useUIStore((s) => s.isIntroActive);
   const { fridgeState } = useFridgeStore();
   const { financeStatus } = useFinanceStore();
   const { shoppingList } = useShoppingStore();
@@ -135,9 +136,9 @@ export function NavDock() {
           Pleine largeur, collée au bord physique, le Home Indicator est
           absorbé par le padding bas en env(safe-area-inset-bottom). */}
       <nav
-        className="fixed inset-x-0 bottom-0 w-full z-40 pointer-events-auto
-                   bg-slate-950/60 backdrop-blur-md border-t border-white/10
-                   px-3 flex items-center justify-around"
+        className={`fixed inset-x-0 bottom-0 w-full z-40 pointer-events-auto transition-opacity duration-500 ${
+          isIntroActive ? 'opacity-0' : 'opacity-100'
+        } bg-slate-950/60 backdrop-blur-md border-t border-white/10 px-3 flex items-center justify-around`}
         aria-label="Navigation principale"
         // Le conteneur touche le bord physique : le padding bas repousse les
         // libelles au-dessus du trait du Home Indicator (14-16 px)

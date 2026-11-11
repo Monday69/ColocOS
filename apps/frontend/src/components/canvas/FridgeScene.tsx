@@ -1,4 +1,4 @@
-import { Suspense, useRef, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   OrbitControls,
@@ -29,6 +29,30 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
   );
   const controlsRef = useRef<OrbitControlsImpl>(null);
 
+  // ── Intro cinématique (2,6 s, skippable au premier tap) ──────────────────
+  const isIntroActive = useUIStore((s) => s.isIntroActive);
+  const setIntroActive = useUIStore((s) => s.setIntroActive);
+  const introPlayed = useRef(false);
+  const introTimer = useRef<number | null>(null);
+
+  const endIntro = useCallback(() => {
+    if (introTimer.current) {
+      window.clearTimeout(introTimer.current);
+      introTimer.current = null;
+    }
+    setIntroActive(false);
+  }, [setIntroActive]);
+
+  useEffect(() => {
+    if (!active || introPlayed.current) return;
+    introPlayed.current = true;
+    setIntroActive(true);
+    introTimer.current = window.setTimeout(endIntro, 2600);
+    return () => {
+      if (introTimer.current) window.clearTimeout(introTimer.current);
+    };
+  }, [active, endIntro, setIntroActive]);
+
   // Raccourci clavier Échap : ferme le tooltip produit, sinon quitte le focus de zone
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,7 +70,13 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
   }, [selectedItemId, setSelectedItemId, zoneDetail, closePanel]);
 
   return (
-    <div className="fixed inset-0 w-full h-dvh">
+    <div
+      className="fixed inset-0 w-full h-dvh"
+      // Un tap pendant l'intro écourte la séquence (aliments en place, caméra calée)
+      onPointerDownCapture={() => {
+        if (isIntroActive) endIntro();
+      }}
+    >
       <Canvas
         shadows
         // Hors onglet frigo : aucune frame n'est rendue (économie GPU/batterie)
@@ -128,7 +158,11 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
 
         {/* ── Modèle Digital Twin ─────────────────────────────────────────── */}
         <Suspense fallback={null}>
-          <FridgeCAD fridgeState={fridgeState} onZoneSelect={openZone} />
+          <FridgeCAD
+            fridgeState={fridgeState}
+            onZoneSelect={openZone}
+            introActive={isIntroActive}
+          />
         </Suspense>
 
         <BakeShadows />
@@ -147,12 +181,14 @@ export function FridgeScene({ active = true }: { active?: boolean }) {
           zoomSpeed={0.8}
           dampingFactor={0.05}
           enableDamping
+          enabled={!isIntroActive}
         />
 
         <CameraController
           selectedZoneId={focusedZoneId}
           selectedItemId={selectedItemId}
           controlsRef={controlsRef}
+          introActive={isIntroActive}
         />
 
         <Environment preset="warehouse" environmentIntensity={0.22} />

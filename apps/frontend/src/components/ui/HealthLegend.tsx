@@ -18,6 +18,7 @@ const LEGEND_ITEMS = [
  * d'action et les boutons de confirmation.
  */
 export function HealthLegend() {
+  const isIntroActive = useUIStore((s) => s.isIntroActive);
   const activeModule = useNavStore((s) => s.activeModule);
   const selectedMeshId = useUIStore((s) => s.selectedMeshId);
   const selectedItemId = useUIStore((s) => s.selectedItemId);
@@ -29,7 +30,9 @@ export function HealthLegend() {
 
   return (
     <div
-      className="absolute left-4 bottom-[var(--legend-bottom)] md:bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] pointer-events-none select-none animate-fade-up z-10"
+      className={`absolute left-4 bottom-[var(--legend-bottom)] md:bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] pointer-events-none select-none animate-fade-up z-10 transition-opacity duration-500 ${
+        isIntroActive ? 'opacity-0' : 'opacity-100'
+      }`}
       style={{ '--legend-bottom': 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' } as CSSProperties}
     >
       <div className="panel px-3 py-2.5 flex flex-col gap-1.5">

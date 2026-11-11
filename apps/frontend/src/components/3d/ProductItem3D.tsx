@@ -127,9 +127,21 @@ export interface ProductItem3DProps {
   position: [number, number, number]
   /** Clayette d'appartenance : sert au pont « recette → zones surlignées » */
   zoneId?: string
+  /** Intro cinématique : chute depuis +25 cm avec overshoot élastique */
+  introActive?: boolean
+  /** Retard d'apparition dans la cascade, en secondes */
+  introDelay?: number
 }
 
-export function ProductItem3D({ item, position, zoneId }: ProductItem3DProps) {
+export function ProductItem3D({
+  item,
+  position,
+  zoneId,
+  introActive = false,
+  introDelay = 0,
+}: ProductItem3DProps) {
+  const introGroupRef = useRef<THREE.Group>(null)
+  const introStartRef = useRef<number | null>(null)
   const [hovered, setHovered] = useState(false)
   // Sélection pilotée par le store : un seul item sélectionné dans toute la scène
   const isSelected = useUIStore((s) => s.selectedItemId === item.id)
@@ -286,10 +298,58 @@ export function ProductItem3D({ item, position, zoneId }: ProductItem3DProps) {
   // Léger décalage vers l'avant pour l'item sélectionné (feedback discret)
   const lift = isSelected ? 0.02 : hovered ? 0.012 : 0
 
+  // Chute du packaging pendant l'intro : tout est calculé dans la boucle de
+  // rendu (aucun setState) pour rester à 60 fps sur WebKit iOS.
+  useFrame((state) => {
+    const group = introGroupRef.current
+    if (!group) return
+
+    const baseY = position[1] + lift
+
+    if (!introActive) {
+      if (introStartRef.current !== null) {
+        introStartRef.current = null
+        group.scale.setScalar(1)
+        group.position.y = baseY
+      }
+      return
+    }
+
+    if (introStartRef.current === null) {
+      introStartRef.current = state.clock.elapsedTime
+    }
+
+    const DURATION = 0.55
+    const elapsed = state.clock.elapsedTime - introStartRef.current - introDelay
+
+    if (elapsed <= 0) {
+      group.scale.setScalar(0.001)
+      group.position.y = baseY + 0.25
+      return
+    }
+
+    const progress = Math.min(1, elapsed / DURATION)
+
+    // easeOutBack : dépasse 1 puis se stabilise (rebond élastique)
+    const c1 = 1.70158
+    const c3 = c1 + 1
+    const overshoot = 1 + c3 * Math.pow(progress - 1, 3) + c1 * Math.pow(progress - 1, 2)
+
+    // easeOutCubic sur la hauteur : la chute ralentit en touchant la clayette
+    const fall = 1 - Math.pow(1 - progress, 3)
+
+    group.scale.setScalar(Math.max(0.001, overshoot))
+    group.position.y = baseY + 0.25 * (1 - fall)
+  })
+
   return (
     // `name` : le CameraController retrouve le packaging dans la scène pour
     // cadrer la caméra sur ses coordonnées monde (vrai zoom objet).
-    <group name={`item:${item.id}`} position={[position[0], position[1] + lift, position[2]]}>
+    <group
+      ref={introGroupRef}
+      name={`item:${item.id}`}
+      position={[position[0], position[1] + lift, position[2]]}
+    >
       {/* Ombre de contact : pose le packaging sur la clayette (texture radiale
           douce, rayon de picking neutralisé) */}
       <mesh
@@ -398,6 +458,8 @@ interface ZoneProductsProps {
   zoneId: string
   items: ZoneItemTwin[]
   relativeToRef?: React.RefObject<THREE.Object3D>
+  /** Intro cinématique : les aliments tombent en cascade */
+  introActive?: boolean
 }
 
 type Placed = { key: string; item: ZoneItemTwin; position: [number, number, number] }
@@ -440,7 +502,7 @@ function computeLayout(bounds: THREE.Box3, items: ZoneItemTwin[]): Placed[] {
   })
 }
 
-export function ZoneProducts({ zoneId, items, relativeToRef }: ZoneProductsProps) {
+export function ZoneProducts({ zoneId, items, relativeToRef, introActive = false }: ZoneProductsProps) {
   const [placed, setPlaced] = useState<Placed[]>([])
 
   useEffect(() => {
@@ -474,8 +536,16 @@ export function ZoneProducts({ zoneId, items, relativeToRef }: ZoneProductsProps
 
   return (
     <group name={`products:${zoneId}`}>
-      {placed.map(({ key, item, position }) => (
-        <ProductItem3D key={key} item={item} position={position} zoneId={zoneId} />
+      {placed.map(({ key, item, position }, index) => (
+        <ProductItem3D
+          key={key}
+          item={item}
+          position={position}
+          zoneId={zoneId}
+          introActive={introActive}
+          // Cascade : 0,8 s de base + 70 ms par aliment
+          introDelay={0.8 + index * 0.07}
+        />
       ))}
     </group>
   )

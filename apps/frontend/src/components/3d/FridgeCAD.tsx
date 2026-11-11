@@ -218,7 +218,7 @@ function InteractiveZone({
       onClick={(e) => {
         // Empêche le toggle de porte du groupe parent (et tout handler ancêtre)
         e.stopPropagation()
-        console.log('🎯 Mesh cliqué:', zoneId)
+        if (!interactive) return
         onZoneSelect(zoneId)
       }}
     />
@@ -307,11 +307,14 @@ export type FridgeCADProps = JSX.IntrinsicElements['group'] & {
   fridgeState?: FridgeStateTwin | null
   /** Ouvre le panneau de détail d'une zone (reçoit un meshId backend) */
   onZoneSelect?: (zoneId: string) => void
+  /** Intro cinématique : porte qui s'ouvre seule + aliments en cascade */
+  introActive?: boolean
 }
 
 export function FridgeCAD({
   fridgeState = null,
   onZoneSelect = () => {},
+  introActive = false,
   ...props
 }: FridgeCADProps) {
   const { nodes, materials } = useGLTF('/models/fridge.glb') as GLTFResult
@@ -325,6 +328,13 @@ export function FridgeCAD({
   // Verrou anti double-tap pendant l'animation de porte (~330 ms)
   const [doorAnimating, setDoorAnimating] = useState(false)
   const doorLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Intro : ouverture douce de la porte, amortie par la boucle useFrame
+  useEffect(() => {
+    if (!introActive) return
+    const timer = window.setTimeout(() => setIsFridgeOpen(true), 180)
+    return () => window.clearTimeout(timer)
+  }, [introActive])
 
   const fridgePivotRef = useRef<THREE.Group>(null)
   const freezerPivotRef = useRef<THREE.Group>(null)
@@ -507,20 +517,20 @@ export function FridgeCAD({
       <group ref={crisperLeftRef} name="crisper:left">
         {zoneMesh('drawer_crisper_left', materials['0.615686_0.811765_0.929412_0.000000_0.000000'], [-3.123, 0.666, -1.487])}
         <group visible={isFridgeOpen}>
-          <ZoneProducts zoneId="fridge_crisper_left" items={zoneItems('fridge_crisper_left')} />
+          <ZoneProducts zoneId="fridge_crisper_left" items={zoneItems('fridge_crisper_left')} introActive={introActive} />
         </group>
       </group>
       <group ref={crisperRightRef} name="crisper:right">
         {zoneMesh('drawer_crisper_right', materials['0.647059_0.647059_0.647059_0.000000_0.000000'], [-3.125, 0.666, -1.487])}
         <group visible={isFridgeOpen}>
-          <ZoneProducts zoneId="fridge_crisper_right" items={zoneItems('fridge_crisper_right')} />
+          <ZoneProducts zoneId="fridge_crisper_right" items={zoneItems('fridge_crisper_right')} introActive={introActive} />
         </group>
       </group>
 
       {/* ── Produits réels (packagings) sur les zones intérieures ───────── */}
       {INTERIOR_PRODUCT_ZONES.map((zoneId) => (
         <group key={zoneId} visible={isFridgeOpen}>
-          <ZoneProducts zoneId={zoneId} items={zoneItems(zoneId)} />
+          <ZoneProducts zoneId={zoneId} items={zoneItems(zoneId)} introActive={introActive} />
         </group>
       ))}
 
@@ -581,6 +591,7 @@ export function FridgeCAD({
               zoneId={zoneId}
               items={zoneItems(zoneId)}
               relativeToRef={doorContentRef}
+              introActive={introActive}
             />
           ))}
         </group>

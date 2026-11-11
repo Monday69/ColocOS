@@ -9,6 +9,8 @@ interface CameraControllerProps {
   /** Packaging sélectionné (clic sur un produit) — priorité sur la zone */
   selectedItemId?: string | null
   controlsRef: React.RefObject<OrbitControlsImpl>
+  /** Intro : départ caméra décalé, glissement amorti vers le cadrage par défaut */
+  introActive?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,7 +170,7 @@ function framingForItem(
   }
 }
 
-export function CameraController({ selectedZoneId, selectedItemId, controlsRef }: CameraControllerProps) {
+export function CameraController({ selectedZoneId, selectedItemId, controlsRef, introActive = false }: CameraControllerProps) {
   const scene = useThree((state) => state.scene)
   const camera = useThree((state) => state.camera)
   const isTransitioning = useRef(false)
@@ -187,6 +189,26 @@ export function CameraController({ selectedZoneId, selectedItemId, controlsRef }
     targetCamPos.current.set(...framing.position)
     isTransitioning.current = true
   }
+
+  // ── Intro cinématique : départ en contre-plongée décalée, puis glissement
+  //    amorti vers le cadrage par défaut (aucune coordonnée finale modifiée).
+  const introApplied = useRef(false)
+  useEffect(() => {
+    if (!introActive || introApplied.current) return
+    introApplied.current = true
+
+    const [tx, ty, tz] = fallback.target
+    const [px, py, pz] = fallback.position
+
+    // Recul + désaxage + contre-plongée, ramenés par le damp de useFrame
+    camera.position.set(px - 0.55, py + 0.42, pz + 0.55)
+    if (controlsRef.current) {
+      controlsRef.current.target.set(tx, ty, tz)
+      controlsRef.current.update()
+    }
+    applyFraming(fallback)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [introActive, camera, fallback])
 
   // ── Priorité 1 : zoom sur le packaging sélectionné ────────────────────────
   // Le mesh peut être monté quelques frames après la sélection (chargement du
