@@ -87,17 +87,22 @@ const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
     target: [-0.84, 1.32, -0.45],
     position: [-0.84, 1.62, 1.55],
   },
+  // 4 clayettes Onshape — plongée légère, caméra à hauteur de la clayette
   fridge_shelf_top: {
-    target: [-0.84, 1.51, -0.5],
-    position: [-0.84, 1.58, 1.0],
+    target: [-0.84, 1.56, -0.10],
+    position: [-0.84, 1.78, 1.90],
   },
-  fridge_shelf_middle: {
-    target: [-0.84, 1.23, -0.5],
-    position: [-0.84, 1.3, 1.0],
+  fridge_shelf_mid_top: {
+    target: [-0.84, 1.30, -0.10],
+    position: [-0.84, 1.52, 1.90],
   },
-  fridge_shelf_bottom: {
-    target: [-0.84, 1.1, -0.52],
-    position: [-0.84, 1.18, 1.0],
+  fridge_shelf_mid_low: {
+    target: [-0.84, 1.16, -0.10],
+    position: [-0.84, 1.38, 1.90],
+  },
+  fridge_shelf_low: {
+    target: [-0.84, 1.02, -0.10],
+    position: [-0.84, 1.24, 1.90],
   },
   fridge_crisper_left: {
     target: [-1.03, 0.8, -0.45],

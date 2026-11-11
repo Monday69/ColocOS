@@ -57,17 +57,17 @@ type GLTFResult = GLTF & {
 // cibles sont EXACTEMENT ceux du seed (`fridge_shelf_top`, `fridge_door_shelf_1`, …)
 // car `onZoneSelect` alimente `GET /api/fridge/zones/:meshId`.
 //
-// NOTE étagères : le CAD contient 4 niveaux (shelf002 > shelf003 > shelf > shelf001)
-// alors que le seed n'expose que 3 zones. Les deux niveaux les plus bas sont donc
-// regroupés sur `fridge_shelf_bottom`.
+// NOTE étagères : le CAD expose 4 clayettes distinctes (shelf002 > shelf003 >
+// shelf > shelf001, mesurées sur l'axe Y). Chacune a sa zone dédiée.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CAD_ZONE_MAP = {
-  // Étagères intérieures
+  // Étagères intérieures — 4 clayettes Onshape, ordonnées par hauteur réelle
+  // shelf002 (y 1.51) > shelf003 (y 1.23) > shelf (y 1.13) > shelf001 (y 0.99)
   shelf002: 'fridge_shelf_top',
-  shelf003: 'fridge_shelf_middle',
-  shelf: 'fridge_shelf_bottom',
-  shelf001: 'fridge_shelf_bottom',
+  shelf003: 'fridge_shelf_mid_top',
+  shelf: 'fridge_shelf_mid_low',
+  shelf001: 'fridge_shelf_low',
 
   // Clayette basse (couvercle des bacs à légumes)
   shelf_crisper_cover: 'fridge_shelf_crisper_cover',

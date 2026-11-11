@@ -139,7 +139,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.13-rack-hitbox-fixed
+          v2.14-four-shelves-mapped
         </span>
       </div>
 

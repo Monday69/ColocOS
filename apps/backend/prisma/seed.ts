@@ -34,9 +34,10 @@ async function main() {
 
   // ── 2. Zones physiques indispensables au Digital Twin CAD ──────────────────
   const zoneDefinitions = [
-    { meshId: 'fridge_shelf_top',       label: 'Frigo — Étagère haute',        type: StorageType.fridge,   capacityLiters: 18, positionX: 0.0,  positionY: 1.4,  positionZ: 0.3  },
-    { meshId: 'fridge_shelf_middle',    label: 'Frigo — Étagère milieu',       type: StorageType.fridge,   capacityLiters: 20, positionX: 0.0,  positionY: 1.1,  positionZ: 0.3  },
-    { meshId: 'fridge_shelf_bottom',    label: 'Frigo — Étagère basse',        type: StorageType.fridge,   capacityLiters: 20, positionX: 0.0,  positionY: 0.8,  positionZ: 0.3  },
+    { meshId: 'fridge_shelf_top',       label: 'Frigo — Clayette haute',        type: StorageType.fridge,  capacityLiters: 18, positionX: 0.0,  positionY: 1.51, positionZ: 0.3  },
+    { meshId: 'fridge_shelf_mid_top',   label: 'Frigo — Clayette milieu haut',  type: StorageType.fridge,  capacityLiters: 20, positionX: 0.0,  positionY: 1.23, positionZ: 0.3  },
+    { meshId: 'fridge_shelf_mid_low',   label: 'Frigo — Clayette milieu bas',   type: StorageType.fridge,  capacityLiters: 20, positionX: 0.0,  positionY: 1.13, positionZ: 0.3  },
+    { meshId: 'fridge_shelf_low',       label: 'Frigo — Clayette basse',        type: StorageType.fridge,  capacityLiters: 20, positionX: 0.0,  positionY: 0.99, positionZ: 0.3  },
     { meshId: 'fridge_crisper_left',    label: 'Frigo — Bac légumes gauche',   type: StorageType.fridge,   capacityLiters: 10, positionX: -0.2, positionY: 0.35, positionZ: 0.3  },
     { meshId: 'fridge_crisper_right',   label: 'Frigo — Bac légumes droit',    type: StorageType.fridge,   capacityLiters: 10, positionX: 0.2,  positionY: 0.35, positionZ: 0.3  },
     { meshId: 'fridge_door_shelf_1',    label: 'Frigo — Porte haut',           type: StorageType.fridge,   capacityLiters: 8,  positionX: 0.0,  positionY: 1.3,  positionZ: -0.3 },
