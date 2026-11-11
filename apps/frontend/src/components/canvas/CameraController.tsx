@@ -77,6 +77,16 @@ const ZONE_CAMERA_TARGETS: Record<string, Framing> = {
     // (plus de débordement à droite) tout en gardant la hauteur utile.
     position: [-0.84, 1.65, 2.9],
   },
+  // Clayette basse et porte-bouteilles : focus rapproché (les bornes réelles
+  // du mesh priment ; ces valeurs servent de repli avant chargement du GLB)
+  fridge_shelf_crisper_cover: {
+    target: [-0.84, 0.95, -0.35],
+    position: [-0.84, 1.35, 2.0],
+  },
+  fridge_rack_bottles: {
+    target: [-0.84, 0.95, -0.55],
+    position: [-0.84, 1.25, 1.65],
+  },
   fridge_shelf_top: {
     target: [-0.84, 1.51, -0.5],
     position: [-0.84, 1.58, 1.0],

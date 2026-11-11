@@ -139,7 +139,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
             boxShadow: '0 0 10px rgba(79,195,247,0.25)',
           }}
         >
-          v2.11-door-cad-mapped
+          v2.12-shelves-rack-mapped
         </span>
       </div>
 

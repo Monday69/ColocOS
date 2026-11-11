@@ -42,6 +42,8 @@ async function main() {
     { meshId: 'fridge_door_shelf_1',    label: 'Frigo — Porte haut',           type: StorageType.fridge,   capacityLiters: 8,  positionX: 0.0,  positionY: 1.3,  positionZ: -0.3 },
     { meshId: 'fridge_door_shelf_2',    label: 'Frigo — Porte milieu',         type: StorageType.fridge,   capacityLiters: 8,  positionX: 0.0,  positionY: 1.0,  positionZ: -0.3 },
     { meshId: 'fridge_door_shelf_3',    label: 'Frigo — Porte bas / beurre',   type: StorageType.fridge,   capacityLiters: 3,  positionX: 0.0,  positionY: 0.7,  positionZ: -0.3 },
+    { meshId: 'fridge_shelf_crisper_cover', label: 'Frigo — Dessus bac à légumes', type: StorageType.fridge, capacityLiters: 8, positionX: 0.0, positionY: 1.0, positionZ: -0.3 },
+    { meshId: 'fridge_rack_bottles',        label: 'Frigo — Range-bouteilles',     type: StorageType.fridge, capacityLiters: 6, positionX: 0.0, positionY: 0.75, positionZ: -0.3 },
     // Porte — 8 bacs discrets de l'assemblage Onshape `fridge_door_assembly`
     { meshId: 'fridge_door_left_1',  label: 'Frigo — Porte G. Haut',       type: StorageType.fridge, capacityLiters: 5, positionX: 0.0, positionY: 1.3, positionZ: -0.3 },
     { meshId: 'fridge_door_left_2',  label: 'Frigo — Porte G. Milieu',     type: StorageType.fridge, capacityLiters: 5, positionX: 0.0, positionY: 1.1, positionZ: -0.3 },

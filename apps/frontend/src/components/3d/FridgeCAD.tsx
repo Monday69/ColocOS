@@ -69,8 +69,11 @@ const CAD_ZONE_MAP = {
   shelf: 'fridge_shelf_bottom',
   shelf001: 'fridge_shelf_bottom',
 
+  // Clayette basse (couvercle des bacs à légumes)
+  shelf_crisper_cover: 'fridge_shelf_crisper_cover',
+
   // Casiers
-  rack_bottles: 'fridge_shelf_bottom',
+  rack_bottles: 'fridge_rack_bottles',
   drawer_crisper_left: 'fridge_crisper_left',
   drawer_crisper_right: 'fridge_crisper_right',
 
@@ -153,6 +156,8 @@ interface InteractiveZoneProps {
   onZoneSelect: (zoneId: string) => void
   /** `false` : raycast neutralisé (porte fermée / animation en cours) */
   interactive?: boolean
+  /** Masquage contextuel (ex. clayette basse quand un bac est sorti) */
+  visible?: boolean
 }
 
 function InteractiveZone({
@@ -163,6 +168,7 @@ function InteractiveZone({
   position,
   onZoneSelect,
   interactive = true,
+  visible = true,
 }: InteractiveZoneProps) {
   const [hovered, setHovered] = useState(false)
   const meshRef = useRef<THREE.Mesh>(null)
@@ -212,6 +218,7 @@ function InteractiveZone({
       // Zone non sélectionnable (porte fermée ou pendant l'animation) :
       // on n'écrase `raycast` que dans ce cas — passer `undefined` casserait
       // la méthode par défaut de THREE.Mesh et casserait tout le picking.
+      visible={visible}
       {...(interactive ? {} : { raycast: NOOP_RAYCAST })}
       onPointerOver={(e) => {
         e.stopPropagation()
@@ -252,10 +259,16 @@ function CrisperHitProxy({
   zoneId,
   onSelect,
   enabled,
+  introActive = false,
+  minSize = [0, 0, 0],
 }: {
   zoneId: string
   onSelect: (zoneId: string) => void
   enabled: boolean
+  /** Pendant l'intro le meuble est à +4 m : on relit les bornes après */
+  introActive?: boolean
+  /** Dimensions minimales (x, y, z) : rend tactile une géométrie très fine */
+  minSize?: [number, number, number]
 }) {
   const [box, setBox] = useState<THREE.Box3 | null>(null)
 
@@ -272,7 +285,7 @@ function CrisperHitProxy({
     }
     read()
     return () => cancelAnimationFrame(raf)
-  }, [zoneId])
+  }, [zoneId, introActive])
 
   if (!box || !enabled) return null
 
@@ -294,7 +307,13 @@ function CrisperHitProxy({
         document.body.style.cursor = 'default'
       }}
     >
-      <boxGeometry args={[Math.max(size.x, 0.2) * 0.92, Math.max(size.y, 0.2) * 0.92, 0.12]} />
+      <boxGeometry
+        args={[
+          Math.max(size.x * 0.92, minSize[0]),
+          Math.max(size.y * 0.92, minSize[1]),
+          Math.max(0.12, minSize[2]),
+        ]}
+      />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
   )
@@ -523,6 +542,7 @@ export function FridgeCAD({
     nodeName: keyof typeof CAD_ZONE_MAP,
     material: THREE.MeshStandardMaterial,
     position: [number, number, number],
+    options?: { visible?: boolean },
   ) => {
     const zoneId = CAD_ZONE_MAP[nodeName]
     const interactive = FREEZER_ZONE_IDS.has(zoneId) ? freezerInteractive : interiorInteractive
@@ -535,6 +555,7 @@ export function FridgeCAD({
         position={position}
         onZoneSelect={handleZoneSelect}
         interactive={interactive}
+        visible={options?.visible}
       />
     )
   }
@@ -545,12 +566,15 @@ export function FridgeCAD({
     <group ref={slamRef} {...props} dispose={null} position={[0.1, 0, 0]}>
       {/* ── 1. Caisson fixe & aménagement intérieur ─────────────────────── */}
       <mesh geometry={nodes.fridge_body.geometry} material={materials['0.615686_0.811765_0.929412_0.000000_0.000000']} position={[-0.48, 0.506, -0.191]} />
-      <mesh
-        geometry={nodes.shelf_crisper_cover.geometry}
-        material={materials['0.980392_0.713725_0.003922_0.000000_0.000000']}
-        position={[-3.124, 0.917, -1.487]}
-        visible={!crisperOpen.left && !crisperOpen.right}
-      />
+      {/* Clayette basse : cliquable, masquée quand un bac est sorti. Son
+          handler stoppe la propagation → un tap sur le verre n'ouvre jamais
+          le tiroir situé dessous. */}
+      {zoneMesh(
+        'shelf_crisper_cover',
+        materials['0.980392_0.713725_0.003922_0.000000_0.000000'],
+        [-3.124, 0.917, -1.487],
+        { visible: !crisperOpen.left && !crisperOpen.right },
+      )}
       {zoneMesh('shelf', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.134, -0.116])}
       {zoneMesh('shelf001', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 0.993, -0.116])}
       {zoneMesh('shelf002', materials['0.498039_0.498039_0.498039_0.000000_0.000000'], [-1.897, 1.51, -0.116])}
@@ -562,11 +586,13 @@ export function FridgeCAD({
         zoneId="fridge_crisper_left"
         onSelect={handleZoneSelect}
         enabled={interiorInteractive}
+        introActive={introActive}
       />
       <CrisperHitProxy
         zoneId="fridge_crisper_right"
         onSelect={handleZoneSelect}
         enabled={interiorInteractive}
+        introActive={introActive}
       />
 
       {/* Bacs à légumes coulissants : le mesh ET son contenu avancent ensemble */}
