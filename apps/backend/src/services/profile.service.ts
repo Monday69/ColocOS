@@ -87,31 +87,55 @@ export function computeTargets(input: TargetsInput): Targets {
 // ── Impédancemétrie (BIA) ───────────────────────────────────────────────────
 
 /**
- * Masse maigre par impédancemétrie — équation de Kyle (2001), sans réactance
- * (les balances à 4 électrodes ne la transmettent pas toujours) :
- *   FFM = 0,518·taille²/R + 0,231·poids − 4,104 + 4,229·(sexe M ? 1 : 0)
+ * Composition corporelle — équation de la Xiaomi Mi Body Composition Scale 2
+ * (`XMTZC05HM`), réputée plus juste que Kyle sans réactance sur cet appareil.
  *
- * Approximation assumée : la réactance est négligée, d'où une précision
- * moindre que sur un appareil médical (±3 %).
+ *   LBM = (H·9,058/100)·(H/100) + W·0,32 + 12,226 − R·0,0068 − âge·0,0542
+ *   avec ajustement de sexe (M : +0,8 / F : −0,8 puis −9,25 sur petit gabarit)
+ *
+ * `impedanceOhm` doit être dans la plage physique de la balance (300–1200 Ω) :
+ * hors bornes la mesure est rejetée (l'appareil renvoie souvent 0 quand les
+ * pieds sont mal posés).
  */
+export const IMPEDANCE_MIN_OHM = 300;
+export const IMPEDANCE_MAX_OHM = 1200;
+
 export function computeBodyComposition(input: {
   weightKg: number;
   heightCm: number;
+  age: number;
   impedanceOhm: number;
   sex: Sex;
 }): { bodyFatPct: number; muscleMassKg: number; fatFreeMassKg: number } {
-  const { weightKg, heightCm, impedanceOhm, sex } = input;
+  const { weightKg, heightCm, age, impedanceOhm, sex } = input;
 
-  const ffmRaw =
-    0.518 * ((heightCm * heightCm) / impedanceOhm) +
-    0.231 * weightKg -
-    4.104 +
-    4.229 * (sex === 'M' ? 1 : 0);
+  if (!Number.isFinite(impedanceOhm) || impedanceOhm < IMPEDANCE_MIN_OHM || impedanceOhm > IMPEDANCE_MAX_OHM) {
+    throw new AppError(
+      400,
+      `Impédance hors plage (${IMPEDANCE_MIN_OHM}–${IMPEDANCE_MAX_OHM} Ω) : repose les pieds sur la balance.`,
+    );
+  }
+
+  const heightM = heightCm / 100;
+  let lbm =
+    (heightCm * 9.058) / 100 * heightM +
+    weightKg * 0.32 +
+    12.226 -
+    impedanceOhm * 0.0068 -
+    age * 0.0542;
+
+  if (sex === 'F') {
+    lbm -= 0.8;
+    // Correction « petit gabarit » de la balance pour les femmes
+    if (weightKg < 60) lbm -= 9.25;
+  } else {
+    lbm += 0.8;
+  }
 
   // Bornes physiologiques : la masse maigre reste dans [30 %, 85 %] du poids
-  const fatFreeMassKg = Math.min(Math.max(ffmRaw, weightKg * 0.3), weightKg * 0.85);
-  const bodyFatPct = Math.max(3, Math.min(55, ((weightKg - fatFreeMassKg) / weightKg) * 100));
-  // Masse musculaire ≈ 52 % de la masse maigre (repère usuel en composition corporelle)
+  const fatFreeMassKg = Math.min(Math.max(lbm, weightKg * 0.3), weightKg * 0.85);
+  const bodyFatPct = Math.max(3, Math.min(60, ((weightKg - fatFreeMassKg) / weightKg) * 100));
+  // Masse musculaire ≈ 52 % de la masse maigre (repère usuel en composition)
   const muscleMassKg = fatFreeMassKg * 0.52;
 
   return {
@@ -448,6 +472,7 @@ export class ProfileService {
         ? computeBodyComposition({
             weightKg: payload.weightKg,
             heightCm: profile.heightCm,
+            age: computeAge(profile.birthDate),
             impedanceOhm: payload.impedanceOhm,
             sex,
           })

@@ -1,0 +1,18 @@
+[Unit]
+Description=ColocOS — passerelle balance Xiaomi Mi Body Composition Scale 2
+After=network-online.target bluetooth.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ColocOS/scripts/ble-scale
+EnvironmentFile=/home/pi/ColocOS/scripts/ble-scale/.env
+ExecStart=/home/pi/ColocOS/scripts/ble-scale/.venv/bin/python scale_bridge.py --scan
+Restart=always
+RestartSec=10
+# Le scan BLE nécessite des droits sur le socket Bluetooth
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

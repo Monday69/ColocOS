@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ColocOS — ESP32 + Xiaomi Mi Body Composition Scale 2 (XMTZC05HM)
+#
+# Flash : esphome run esphome-scale.yaml
+# Secrets attendus dans secrets.yaml :
+#   wifi_ssid, wifi_password, colocos_api_url, colocos_device_key
+# ─────────────────────────────────────────────────────────────────────────────
+esphome:
+  name: colocos-scale
+  friendly_name: ColocOS Scale Bridge
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "ColocOS-Scale-Fallback"
+
+captive_portal:
+
+# ── Balance ─────────────────────────────────────────────────────────────────
+# Le composant `xiaomi_miscale` expose poids et impédance (mi scale 2).
+sensor:
+  - platform: xiaomi_miscale
+    mac_address: !secret scale_mac
+    weight:
+      name: "ColocOS Scale Weight"
+      id: scale_weight
+    impedance:
+      name: "ColocOS Scale Impedance"
+      id: scale_impedance
+
+# ── Envoi HTTP vers ColocOS ─────────────────────────────────────────────────
+http_request:
+  id: http_client
+  timeout: 8s
+
+interval:
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            and:
+              - lambda: return id(scale_weight).has_state() && id(scale_weight).state > 20.0;
+              - lambda: return id(scale_impedance).has_state();
+          then:
+            - http_request.post:
+                url: !secret colocos_weigh_in_url
+                headers:
+                  Content-Type: application/json
+                  X-Device-Key: !secret colocos_device_key
+                json:
+                  weightKg: !lambda 'return id(scale_weight).state;'
+                  impedanceOhm: !lambda 'return id(scale_impedance).state;'
+                on_response:
+                  then:
+                    - logger.log:
+                        format: "ColocOS weigh-in → %d"
+                        args: ["response->status_code"]
