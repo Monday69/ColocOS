@@ -166,7 +166,7 @@ interface CatalogRecipe {
   ingredients: string[];
 }
 
-const LOCAL_CATALOG: CatalogRecipe[] = [
+export const LOCAL_CATALOG: CatalogRecipe[] = [
   {
     key: 'riz-saute-soja',
     title: 'Riz sauté à la sauce soja',
@@ -1118,4 +1118,3 @@ export class RecipeService {
 }
 
 export const recipeService = new RecipeService();
-export { LOCAL_CATALOG };

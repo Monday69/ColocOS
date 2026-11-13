@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { shoppingController } from '../controllers/shopping.controller';
+import { wrappedController } from '../controllers/wrapped.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,6 +36,9 @@ router.patch(
   shoppingController.checkItem.bind(shoppingController),
 );
 router.delete('/lists/:listId/items/:itemId', shoppingController.deleteItem.bind(shoppingController));
+
+// Suggestions intelligentes (habitudes d'achat)
+router.get('/predictions', wrappedController.predictions.bind(wrappedController));
 
 router.post('/items', shoppingController.addItemToActiveList.bind(shoppingController));
 router.patch('/items/:id', shoppingController.checkItemInActiveList.bind(shoppingController));

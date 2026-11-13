@@ -25,7 +25,7 @@ import { RecipeImportModal } from '@/components/ui/RecipeImportModal';
 import { useRecipesStore, useBridge, useShoppingStore, useStore } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
-import type { RecipeSuggestion , RecipeQuery} from '@/types';
+import type { RecipeSuggestion , RecipeQuery, RecipeRecommendations } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Recipe Module
@@ -737,6 +737,8 @@ export function RecipeModule() {
         </div>
       </div>
 
+      <RecommendedStrip />
+
       <HubToolbar
         search={search}
         onSearch={setSearch}
@@ -905,4 +907,78 @@ export function RecipeModule() {
       </AnimatePresence>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recommandé pour toi maintenant — moteur priorisé (stock + macros + Jarvis)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TAG_STYLE: Record<string, { label: string; color: string }> = {
+  ANTI_GASPI: { label: 'Anti-gaspi', color: '#34d399' },
+  POST_WORKOUT: { label: 'Récup séance', color: '#38bdf8' },
+  CARB_LOAD_J1: { label: 'Recharge J+1', color: '#fbbf24' },
+  MACRO_FIT: { label: 'Macro fit', color: '#a78bfa' },
+}
+
+function RecommendedStrip() {
+  const [data, setData] = useState<RecipeRecommendations | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .getRecipeRecommendations()
+      .then((result) => {
+        if (!cancelled) setData(result)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const items = data?.recommendations ?? []
+  if (items.length === 0) return null
+
+  return (
+    <section className="flex-shrink-0">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Sparkles size={11} className="text-accent" />
+        <span className="label-section">RECOMMANDÉ POUR TOI MAINTENANT</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {items.map((recipe) => (
+          <div
+            key={recipe.key}
+            className="flex-shrink-0 w-[168px] rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden"
+          >
+            <div className="h-16 w-full bg-slate-800/60">
+              <img src={recipe.image} alt="" className="h-full w-full object-cover opacity-80" loading="lazy" />
+            </div>
+            <div className="p-2">
+              <div className="font-sans text-[11px] text-white/90 leading-tight line-clamp-2">
+                {recipe.title}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {recipe.tags.slice(0, 2).map((tag) => {
+                  const style = TAG_STYLE[tag]
+                  return (
+                    <span
+                      key={tag}
+                      className="px-1.5 py-0.5 rounded-md font-mono text-[8px]"
+                      style={{ color: style.color, backgroundColor: `${style.color}1a` }}
+                    >
+                      {style.label}
+                    </span>
+                  )
+                })}
+              </div>
+              <div className="mt-1 font-mono text-[8px] text-slate-500">
+                {recipe.stockIngredients.length}/{recipe.stockIngredients.length + recipe.missingIngredients.length} en stock · {recipe.proteinGrams} g prot
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
 }

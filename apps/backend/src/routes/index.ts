@@ -14,6 +14,7 @@ import mealPlanRouter from './mealPlan';
 import mealsRouter from './meals';
 import profileRouter from './profile';
 import integrationsRouter from './integrations';
+import wrappedRouter from './wrapped';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/items',     itemsRouter);     // Actions rapides (partage depuis un
 router.use('/users',     usersRouter);     // Profil & cibles nutritionnelles (BMR/TDEE)
 router.use('/profile',   profileRouter);   // Profil athlète : biométrie, macros, pesées BLE
 router.use('/integrations', integrationsRouter); // Pont Jarvis Runner (séances, planning J+1)
+router.use('/wrapped',    wrappedRouter);  // Recap hebdomadaire (ColocOS Wrapped)
 
 export default router;

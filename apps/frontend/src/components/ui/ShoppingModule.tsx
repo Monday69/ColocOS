@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart, Plus, Check, Sparkles,
-  Loader2, AlertCircle, X,
+  Loader2, AlertCircle, X, ChevronDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useShopping } from '@/hooks/useShopping';
+import { api } from '@/api/client';
 import { toasts } from '@/components/ui/ToastProvider';
-import type { ShoppingItem } from '@/types';
+import { hapticTap } from '@/lib/haptics';
+import type { ShoppingItem, ShoppingPrediction } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Shopping Module
@@ -300,6 +302,9 @@ export function ShoppingModule() {
           </div>
         )}
 
+        {/* Suggestions intelligentes (habitudes d'achat) */}
+        <SmartPredictions onAdd={addItem} />
+
         {/* Auto-suggested section */}
         <AnimatePresence>
           {autoItems.length > 0 && (
@@ -396,4 +401,153 @@ export function ShoppingModule() {
       )}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suggestions intelligentes — habitudes d'achat déduites des StockEvent
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SmartPredictions({
+  onAdd,
+}: {
+  onAdd: (name: string, quantity: number, unit: string) => Promise<unknown>
+}) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<ShoppingPrediction[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open || items !== null) return
+    let cancelled = false
+    void api
+      .getShoppingPredictions()
+      .then((result) => {
+        if (!cancelled) setItems(result)
+      })
+      .catch(() => {
+        if (!cancelled) setItems([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, items])
+
+  const addOne = async (prediction: ShoppingPrediction) => {
+    try {
+      await onAdd(prediction.itemName, 1, 'unité')
+      toasts.addItem(prediction.itemName)
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : "Impossible d'ajouter")
+    }
+  }
+
+  const addAll = async () => {
+    if (!items || items.length === 0 || busy) return
+    setBusy(true)
+    try {
+      for (const prediction of items) {
+        await onAdd(prediction.itemName, 1, 'unité')
+      }
+      toasts.addItem(`${items.length} suggestions`)
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : "Impossible d'ajouter")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => {
+          hapticTap()
+          setOpen((value) => !value)
+        }}
+        className="w-full flex items-center justify-between px-3 py-2.5 tap"
+      >
+        <span className="flex items-center gap-2">
+          <Sparkles size={11} className="text-accent" />
+          <span className="label-section">SUGGESTIONS INTELLIGENTES</span>
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-slate-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-3 space-y-1.5">
+              {items === null && (
+                <div className="flex items-center gap-2 py-3 justify-center text-slate-500">
+                  <Loader2 size={12} className="animate-spin" />
+                  <span className="font-mono text-[10px]">Analyse des habitudes…</span>
+                </div>
+              )}
+
+              {items !== null && items.length === 0 && (
+                <p className="font-sans text-[11px] text-slate-500 py-2">
+                  Pas encore assez d'historique — ajoute et termine quelques produits pour
+                  débloquer les prédictions.
+                </p>
+              )}
+
+              {items?.map((prediction) => (
+                <div
+                  key={prediction.normalized}
+                  className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] px-2.5 py-2"
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor:
+                        prediction.urgency === 'high'
+                          ? '#f87171'
+                          : prediction.urgency === 'medium'
+                            ? '#fbbf24'
+                            : '#38bdf8',
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-sans text-[11px] text-white/85 truncate">
+                      {prediction.itemName}
+                    </div>
+                    <div className="font-mono text-[8px] text-slate-500 truncate">
+                      {prediction.reason}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void addOne(prediction)}
+                    className="px-2 h-7 rounded-lg border border-accent/35 bg-accent/10 font-mono text-[9px] text-accent tap"
+                  >
+                    + Ajouter
+                  </button>
+                </div>
+              ))}
+
+              {items !== null && items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void addAll()}
+                  disabled={busy}
+                  className="w-full h-8 rounded-lg border border-white/12 bg-white/[0.05] font-mono text-[10px] text-slate-200 tap disabled:opacity-50"
+                >
+                  {busy ? 'AJOUT…' : 'TOUT AJOUTER'}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
