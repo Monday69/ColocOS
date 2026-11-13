@@ -34,6 +34,53 @@ export interface ZoneItemTwin {
   novaGroup: number | null;
 }
 
+export type AuthMode = 'AUTO_DEVICE' | 'PIN_ONLY' | 'USERNAME_PIN'
+export type AthleteGoal = 'MAINTAIN' | 'BULK' | 'CUT' | 'CARB_LOAD'
+
+export interface AthleteProfile {
+  heightCm: number
+  weightKg: number
+  birthDate: string
+  sex: 'M' | 'F'
+  activityFactor: number
+  goal: AthleteGoal
+  age: number
+  bmr: number
+  tdee: number
+  targetKcal: number
+  targetProtein: number
+  targetCarbs: number
+  targetFat: number
+  updatedAt: string
+}
+
+export interface NutritionToday {
+  date: string
+  consumed: { kcal: number; proteinG: number; carbsG: number; fatG: number }
+  targets: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+  remaining: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+  logs: Array<{
+    id: string
+    label: string
+    kcal: number
+    proteinG: number
+    carbsG: number
+    fatG: number
+    source: string
+    consumedAt: string
+  }>
+}
+
+export interface WeighIn {
+  id: string
+  weightKg: number
+  impedanceOhm: number | null
+  bodyFatPct: number | null
+  muscleMassKg: number | null
+  source: string
+  measuredAt: string
+}
+
 export interface StorageZoneSummary {
   id: string;
   meshId: string;
@@ -107,6 +154,10 @@ export interface AuthUser {
   email: string;
   avatarUrl: string | null;
   colorHex: string;
+  /** Identifiant de connexion (mode USERNAME_PIN) */
+  username?: string | null;
+  /** Mode d'authentification exigé pour ce profil */
+  authMode?: AuthMode;
 }
 
 export interface ApiResponse<T> {
@@ -480,6 +531,10 @@ export interface RoommateProfile {
   colorHex: string;
   avatarUrl: string | null;
   hasPin: boolean;
+  /** Mode exigé par le profil (AUTO_DEVICE | PIN_ONLY | USERNAME_PIN) */
+  authMode?: AuthMode;
+  /** Identifiant de connexion (non secret) */
+  username?: string | null;
 }
 
 export interface UserProfile {

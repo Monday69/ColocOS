@@ -10,7 +10,10 @@ import { FinanceModule } from '@/components/ui/FinanceModule';
 import { ShoppingModule } from '@/components/ui/ShoppingModule';
 import { ScannerModule } from '@/components/ui/ScannerModule';
 import { RecipeModule } from '@/components/ui/RecipeModule';
-import { useNavStore } from '@/store';
+import { useEffect } from 'react';
+import { useNavStore, useAuth } from '@/store';
+import { api } from '@/api/client';
+import { toasts } from '@/components/ui/ToastProvider';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — App Layout v4 (Sprint 8 — Offline + Audio)
@@ -26,6 +29,32 @@ import { useNavStore } from '@/store';
 
 function AppContent() {
   useConnectivity();
+
+  /**
+   * Lien magique NFC : l'API redirige vers `/#nfc=<accessToken>`. Le jeton
+   * voyage dans le fragment (jamais envoyé au serveur), on l'échange contre
+   * la session complète puis on nettoie l'URL.
+   */
+  useEffect(() => {
+    const match = window.location.hash.match(/^#nfc=(.+)$/);
+    if (!match) return;
+
+    const accessToken = decodeURIComponent(match[1]);
+    window.history.replaceState(null, '', window.location.pathname);
+
+    useAuth.setState({ token: accessToken });
+
+    void api
+      .me()
+      .then((user) => {
+        useAuth.getState().setAuth(accessToken, useAuth.getState().refreshToken ?? '', user);
+        toasts.info('Badge NFC reconnu', `Bonjour ${user.name} !`);
+      })
+      .catch(() => {
+        useAuth.getState().logout();
+        toasts.error('Badge NFC invalide', 'Régénère-le depuis Profil → Sécurité & NFC.');
+      });
+  }, []);
   const activeModule = useNavStore((s) => s.activeModule);
   const isFridgeTab = activeModule === 'fridge';
 

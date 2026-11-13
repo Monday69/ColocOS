@@ -6,9 +6,11 @@ import {
   RefreshTokenSchema,
   UpdateProfileSchema,
   LoginPinSchema,
+  DeviceLoginSchema,
   SetupPinSchema,
   UpdatePinSchema,
 } from '../dtos/auth.dto';
+import { env } from '../config/env';
 import { AppError } from '../middlewares/errorHandler';
 import { ApiResponse, AuthUser } from '../types';
 
@@ -152,7 +154,7 @@ export class AuthController {
   async loginPin(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const dto = LoginPinSchema.parse(req.body);
-      const result = await authService.loginWithPin(dto.userId, dto.pin);
+      const result = await authService.loginWithPin(dto.userId, dto.pin, dto.username);
 
       res.status(200).json({
         success: true,
@@ -161,6 +163,58 @@ export class AuthController {
       } satisfies ApiResponse);
     } catch (err) {
       next(err);
+    }
+  }
+
+  /**
+   * POST /api/auth/device
+   * Sélection de profil sans PIN (`AUTO_DEVICE`) : tablette de cuisine.
+   */
+  async deviceLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const dto = DeviceLoginSchema.parse(req.body);
+      const result = await authService.loginWithDevice(dto.userId);
+
+      res.status(200).json({
+        success: true,
+        data: { user: result.user, tokens: result.tokens },
+        message: `Bonjour ${result.user.name} !`,
+      } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/auth/nfc/regenerate
+   * Régénère le jeton du badge NFC de l'utilisateur courant.
+   */
+  async regenerateNfc(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+      const data = await authService.regenerateNfcToken(req.user.id);
+      res.status(200).json({ success: true, data } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/auth/nfc?token=<uuid>
+   * Lien magique : ouvre la session puis redirige vers l'app.
+   * Le jeton de session voyage dans le fragment (`#nfc=`), jamais dans la
+   * query string : il n'apparaît donc ni dans les logs serveur ni dans les
+   * en-têtes Referer.
+   */
+  async nfcLogin(req: Request, res: Response): Promise<void> {
+    try {
+      const token = String(req.query.token ?? '');
+      const result = await authService.loginWithNfcToken(token);
+
+      const target = `${env.FRONTEND_URL}/#nfc=${encodeURIComponent(result.tokens.accessToken)}`;
+      res.redirect(302, target);
+    } catch {
+      res.redirect(302, `${env.FRONTEND_URL}/#nfc-error=1`);
     }
   }
 

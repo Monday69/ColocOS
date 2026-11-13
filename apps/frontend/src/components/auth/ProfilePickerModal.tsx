@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Delete, KeyRound, Loader2, Lock, Mail, UserPlus } from 'lucide-react'
+import { ArrowLeft, Delete, KeyRound, Loader2, Lock, Mail, User, UserPlus } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/api/client'
 import { useAuth } from '@/store'
@@ -85,6 +85,8 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
   const [pin, setPin] = useState('')
   const [firstPin, setFirstPin] = useState('')
   const [email, setEmail] = useState('')
+  // Mode `USERNAME_PIN` : identifiant saisi avant le code
+  const [usernameInput, setUsernameInput] = useState('')
   const [error, setError] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -129,7 +131,7 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
       setError(false)
 
       try {
-        const result = await api.loginWithPin(selected.id, code)
+        const result = await api.loginWithPin(selected.id, code, usernameInput.trim() || undefined)
         finishAuthentication(result)
       } catch (err) {
         hapticError()
@@ -145,7 +147,7 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selected, busy],
+    [selected, busy, usernameInput],
   )
 
   const submitSetup = useCallback(
@@ -266,7 +268,25 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
                   setPin('')
                   setFirstPin('')
                   setEmail('')
+                  setUsernameInput('')
                   setMessage(null)
+
+                  // `AUTO_DEVICE` : la tablette de cuisine ouvre la session
+                  // sans code. Les autres modes demandent leur secret.
+                  if (profile.authMode === 'AUTO_DEVICE') {
+                    setBusy(true)
+                    void api
+                      .loginWithDevice(profile.id)
+                      .then((result) => finishAuthentication(result))
+                      .catch((err) => {
+                        hapticError()
+                        setMessage(err instanceof Error ? err.message : 'Connexion impossible.')
+                        setStep('pin')
+                      })
+                      .finally(() => setBusy(false))
+                    return
+                  }
+
                   setStep(profile.hasPin ? 'pin' : 'setup')
                 }}
                 className="flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03]
@@ -344,6 +364,23 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
           </span>
         )}
       </div>
+
+      {/* Mode identifiant + PIN : l'identifiant est demandé avant le code */}
+      {!isSetup && selected?.authMode === 'USERNAME_PIN' && (
+        <label className="flex items-center gap-2 mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <User size={12} className="text-slate-500 flex-shrink-0" />
+          <input
+            type="text"
+            value={usernameInput}
+            onChange={(event) => setUsernameInput(event.target.value)}
+            placeholder="Identifiant"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="flex-1 bg-transparent font-body text-xs text-text-primary placeholder-text-tertiary focus:outline-none"
+          />
+        </label>
+      )}
 
       <div className="mt-5">
         <PinDots value={pin} error={error} />

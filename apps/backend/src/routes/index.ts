@@ -12,6 +12,7 @@ import itemsRouter from './items';
 import usersRouter from './users';
 import mealPlanRouter from './mealPlan';
 import mealsRouter from './meals';
+import profileRouter from './profile';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/shopping',  shoppingRouter);  // Liste de courses (lazy-create si a
 router.use('/notifications', notificationsRouter); // Web Push (abonnement + test)
 router.use('/items',     itemsRouter);     // Actions rapides (partage depuis une notification)
 router.use('/users',     usersRouter);     // Profil & cibles nutritionnelles (BMR/TDEE)
+router.use('/profile',   profileRouter);   // Profil athlète : biométrie, macros, pesées BLE
 
 export default router;

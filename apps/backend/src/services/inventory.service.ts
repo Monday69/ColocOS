@@ -2,6 +2,7 @@ import { Prisma, Unit } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
+import { profileService } from './profile.service';
 import {
   CreateItemDTO,
   ConsumeItemDTO,
@@ -299,6 +300,24 @@ export class InventoryService {
     logger.debug(
       `[Inventory] Consommation ${isFullyConsumed ? 'TOTALE' : 'partielle'} : ${item.name} → ${remaining} ${item.unit}`,
     );
+
+    // Journal macros : non bloquant (une erreur de tracking ne doit jamais
+    // faire échouer une consommation de stock).
+    if (userId && (item.calories !== null || item.proteins !== null)) {
+      const grams = item.unit === 'g' || item.unit === 'ml' ? amount : amount * 100;
+      const ratio = grams / 100;
+      void profileService
+        .logConsumption({
+          userId,
+          label: item.name,
+          kcal: (item.calories ?? 0) * ratio,
+          proteinG: (item.proteins ?? 0) * ratio,
+          carbsG: (item.carbohydrates ?? 0) * ratio,
+          fatG: (item.fat ?? 0) * ratio,
+          source: 'STOCK_ACTION',
+        })
+        .catch((err) => logger.warn(`[Nutrition] Journal stock ignoré : ${String(err)}`));
+    }
 
     if (userId) {
       await prisma.activityLog.create({

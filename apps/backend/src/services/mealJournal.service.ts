@@ -1,5 +1,7 @@
 import { prisma } from '../config/prisma';
+import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
+import { profileService } from './profile.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Journal nutritionnel (repas enregistrés)
@@ -76,6 +78,22 @@ class MealJournalService {
         include: { items: true },
       });
 
+      return meal;
+    }).then(async (meal) => {
+      // Journal macros : un repas validé compte comme une prise alimentaire.
+      if (userId) {
+        await profileService
+          .logConsumption({
+            userId,
+            label: `Repas · ${items.length} aliment${items.length > 1 ? 's' : ''}`,
+            kcal: totals.calories,
+            proteinG: totals.proteins,
+            carbsG: totals.carbs,
+            fatG: totals.fat,
+            source: 'MEAL',
+          })
+          .catch((err) => logger.warn(`[Nutrition] Journal repas ignoré : ${String(err)}`));
+      }
       return meal;
     });
   }

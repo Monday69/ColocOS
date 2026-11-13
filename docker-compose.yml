@@ -53,6 +53,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-colocos_dev_refresh_secret_change_me_0123456789}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      SCALE_DEVICE_KEY: ${SCALE_DEVICE_KEY:-colocos_scale_device_key}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       # Web Push — optionnel : sans clés l'API démarre et désactive l'envoi
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

@@ -27,6 +27,8 @@ const envSchema = z.object({
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  /// Base publique de l'API (liens magiques NFC, partages)
+  PUBLIC_API_URL: z.string().default('http://localhost/api'),
 
   // ── Web Push (PWA) ────────────────────────────────────────────────────────
   // Optionnels : sans ces clés l'API démarre normalement, le service push
@@ -34,6 +36,10 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:contact@colocos.local'),
+
+  // ── Balance connectée (Xiaomi / Mi Body Composition) ──────────────────────
+  // Protège POST /api/profile/weigh-in : la balance ne porte pas de JWT.
+  SCALE_DEVICE_KEY: z.string().min(8).default('colocos_scale_device_key'),
 });
 
 const parsed = envSchema.safeParse(process.env);

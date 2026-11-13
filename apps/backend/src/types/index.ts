@@ -32,6 +32,10 @@ export interface AuthUser {
   email: string;
   avatarUrl: string | null;
   colorHex: string;
+  /** Identifiant de connexion (mode USERNAME_PIN) */
+  username: string | null;
+  /** Mode d'authentification exigé pour ce profil */
+  authMode: string;
 }
 
 export interface JwtPayload {
