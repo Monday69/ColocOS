@@ -1,0 +1,4 @@
+# ColocOS — passerelle balance BLE (Raspberry Pi 4)
+bleak==0.22.3
+httpx==0.27.2
+python-dotenv==1.0.1
