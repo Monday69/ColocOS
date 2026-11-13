@@ -83,6 +83,17 @@ export const UpdateProfileSchema = z.object({
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .optional(),
   avatarUrl: z.string().url().optional().nullable(),
+  /// Identifiant de connexion (3–40 car., alphanumérique + . _ -)
+  username: z
+    .string()
+    .trim()
+    .min(3)
+    .max(40)
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Identifiant invalide (lettres, chiffres, . _ -)')
+    .optional()
+    .nullable(),
+  /// Mode d'authentification du profil
+  authMode: z.enum(['AUTO_DEVICE', 'PIN_ONLY', 'USERNAME_PIN']).optional(),
   currentPassword: z.string().min(1).optional(),
   newPassword: passwordSchema.optional(),
 }).refine(
@@ -108,6 +119,12 @@ const pinSchema = z
 export const LoginPinSchema = z.object({
   userId: z.string().uuid('userId doit être un UUID valide'),
   pin: pinSchema,
+  /// Exigé quand le profil est en `USERNAME_PIN`
+  username: z.string().trim().max(40).optional(),
+});
+
+export const DeviceLoginSchema = z.object({
+  userId: z.string().uuid('userId doit être un UUID valide'),
 });
 
 export type LoginPinDTO = z.infer<typeof LoginPinSchema>;

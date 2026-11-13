@@ -53,6 +53,16 @@ router.post(
   authController.loginPin.bind(authController),
 );
 
+// Sélection de profil sans PIN (mode AUTO_DEVICE)
+router.post(
+  '/device',
+  authRateLimiter,
+  authController.deviceLogin.bind(authController),
+);
+
+// Lien magique NFC : GET public (le jeton du badge est le secret)
+router.get('/nfc', authController.nfcLogin.bind(authController));
+
 router.post(
   '/setup-pin',
   authRateLimiter,
@@ -69,6 +79,12 @@ router.post(
   '/me/pin',
   authenticate,
   authController.updatePin.bind(authController),
+);
+
+router.post(
+  '/nfc/regenerate',
+  authenticate,
+  authController.regenerateNfc.bind(authController),
 );
 
 router.get(

@@ -75,6 +75,14 @@ model User {
   /// Hash bcrypt du code PIN à 4 chiffres (sélecteur de profils)
   pinHash       String?  @map("pin_hash")
 
+  // ── Authentification modulable (identifiant + PIN + lien magique NFC) ─────
+  /// Identifiant court de connexion (`USERNAME_PIN`) — unique, optionnel
+  username      String?   @unique @db.VarChar(40)
+  /// Mode d'authentification exigé à la sélection du profil
+  authMode      AuthMode  @default(AUTO_DEVICE) @map("auth_mode")
+  /// Jeton du badge NFC (UUID v4) — régénérable, révocable
+  nfcToken      String?   @unique @map("nfc_token") @db.VarChar(64)
+
   // ── Profil nutritionnel & biométrie ───────────────────────────────────────
   birthDate     DateTime?     @map("birth_date") @db.Date
   heightCm      Float?        @map("height_cm")
@@ -98,6 +106,9 @@ model User {
   cookedMeals      MealPlan[]       @relation("MealPlanCook")
   customRecipes    CustomRecipe[]
   meals            Meal[]           @relation("MealOwner")
+  profile          UserProfile?
+  nutritionLogs    NutritionLog[]
+  weighIns         WeighIn[]
 
   @@map("users")
 }
@@ -447,4 +458,83 @@ model MealItem {
 
   @@index([mealId])
   @@map("meal_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFIL ATHLÈTE — authentification modulable, macros & pesées
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Mode de connexion du profil.
+/// AUTO_DEVICE   : sélection du profil = session ouverte (tablette de cuisine)
+/// PIN_ONLY      : code PIN seul
+/// USERNAME_PIN  : identifiant + code PIN
+enum AuthMode {
+  AUTO_DEVICE
+  PIN_ONLY
+  USERNAME_PIN
+}
+
+/// Objectif sportif du profil (pilote le delta calorique et la répartition).
+enum ProfileGoal {
+  MAINTAIN
+  BULK
+  CUT
+  CARB_LOAD
+}
+
+/// Biométrie + cibles journalières calculées (Mifflin-St Jeor × activité).
+model UserProfile {
+  id             String      @id @default(uuid()) @db.Uuid
+  userId         String      @unique @map("user_id") @db.Uuid
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heightCm       Int         @map("height_cm")
+  weightKg       Float       @map("weight_kg")
+  birthDate      DateTime    @map("birth_date") @db.Date
+  /// "M" | "F"
+  sex            String      @db.Char(1)
+  activityFactor Float       @default(1.55) @map("activity_factor")
+  goal           ProfileGoal @default(MAINTAIN)
+  targetKcal     Int         @map("target_kcal")
+  targetProtein  Int         @map("target_protein")
+  targetCarbs    Int         @map("target_carbs")
+  targetFat      Int         @map("target_fat")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("user_profiles")
+}
+
+/// Consommation alimentaire journalière (macro-tracking temps réel).
+model NutritionLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String   @db.VarChar(160)
+  kcal       Float
+  proteinG   Float    @map("protein_g")
+  carbsG     Float    @map("carbs_g")
+  fatG       Float    @map("fat_g")
+  /// STOCK_ACTION | MEAL | MANUAL
+  source     String   @db.VarChar(24)
+  consumedAt DateTime @default(now()) @map("consumed_at") @db.Timestamptz
+
+  @@index([userId, consumedAt])
+  @@map("nutrition_logs")
+}
+
+/// Pesée (balance Xiaomi BLE ou saisie manuelle).
+model WeighIn {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg     Float    @map("weight_kg")
+  impedanceOhm Float?   @map("impedance_ohm")
+  bodyFatPct   Float?   @map("body_fat_pct")
+  muscleMassKg Float?   @map("muscle_mass_kg")
+  /// BLE_SCALE | MANUAL
+  source       String   @db.VarChar(24)
+  measuredAt   DateTime @default(now()) @map("measured_at") @db.Timestamptz
+
+  @@index([userId, measuredAt])
+  @@map("weigh_ins")
 }

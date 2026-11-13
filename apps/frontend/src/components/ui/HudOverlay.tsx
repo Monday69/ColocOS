@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { useFridgeStore, useAudioStore, useConnectivityStore, useOfflineQueue, useNavStore, useUIStore } from '@/store';
 import { HEALTH_COLORS } from '@/lib/healthColors';
 import { toasts } from '@/components/ui/ToastProvider';
-import { UserProfileModal } from '@/components/ui/UserProfileModal';
+import { AthleteProfileModal } from '@/components/ui/AthleteProfileModal';
 import { hapticTap } from '@/lib/haptics';
 import { disablePush, enablePush, getPushStatus, isPushSupported, type PushStatus } from '@/lib/push';
 
@@ -318,7 +318,7 @@ export function HudOverlay({ onAudioStart }: HudOverlayProps) {
         )}
       </AnimatePresence>
 
-      <UserProfileModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <AthleteProfileModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </div>
   );
 }

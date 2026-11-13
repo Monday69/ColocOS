@@ -6,6 +6,7 @@ import type {
   UserProfile, NutritionTargets, UpdateProfilePayload,
   RoommateProfile,
   FreshCatalog, QuickAddPayload, QuickAddResult, StorageZoneSummary,
+  AthleteProfile, AthleteGoal, NutritionToday, WeighIn, AuthMode,
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
@@ -53,6 +54,35 @@ class ApiClient {
   getZoneDetail = (meshId: string) => this.request<ZoneDetail>(`/fridge/zones/${meshId}`);
   getZones = () => this.request<StorageZoneSummary[]>('/fridge/zones');
 
+  // Profil athlète : biométrie, macros du jour, pesées, badge NFC
+  updateSecurity = (payload: { username?: string | null; authMode?: AuthMode }) =>
+    this.request<AuthUser>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  getAthleteProfile = () => this.request<AthleteProfile | null>('/profile');
+  saveAthleteProfile = (payload: {
+    heightCm: number;
+    weightKg: number;
+    birthDate: string;
+    sex: 'M' | 'F';
+    activityFactor: number;
+    goal: AthleteGoal;
+  }) =>
+    this.request<AthleteProfile>('/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  getNutritionToday = () => this.request<NutritionToday>('/profile/nutrition/today');
+  getWeighIns = (limit = 20) => this.request<WeighIn[]>(`/profile/weigh-ins?limit=${limit}`);
+  regenerateNfcBadge = () =>
+    this.request<{ token: string; url: string }>('/auth/nfc/regenerate', { method: 'POST' });
+  loginWithDevice = (userId: string) =>
+    this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>(
+      '/auth/device',
+      { method: 'POST', body: JSON.stringify({ userId }) },
+    );
+
   // Auth
   login = (email: string, password: string) => this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   me = () => this.request<AuthUser>('/auth/me');
@@ -60,10 +90,10 @@ class ApiClient {
 
   // Sélecteur de profils & code PIN (routes publiques)
   getProfiles = () => this.request<RoommateProfile[]>('/auth/profiles');
-  loginWithPin = (userId: string, pin: string) =>
+  loginWithPin = (userId: string, pin: string, username?: string) =>
     this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string; expiresIn: number } }>(
       '/auth/login-pin',
-      { method: 'POST', body: JSON.stringify({ userId, pin }) },
+      { method: 'POST', body: JSON.stringify({ userId, pin, username }) },
     );
   setupPin = (userId: string, pin: string, email?: string) =>
     this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string; expiresIn: number } }>(
