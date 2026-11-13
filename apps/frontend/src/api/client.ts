@@ -7,6 +7,7 @@ import type {
   RoommateProfile,
   FreshCatalog, QuickAddPayload, QuickAddResult, StorageZoneSummary,
   AthleteProfile, AthleteGoal, NutritionToday, WeighIn, AuthMode, UpcomingWorkouts,
+  WrappedWeekly, RecipeRecommendations, ShoppingPrediction,
   RecipeQuery, MealPlanEntry, MealPlanUpsertPayload,
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
@@ -76,6 +77,11 @@ class ApiClient {
   getNutritionToday = () => this.request<NutritionToday>('/profile/nutrition/today');
   getWeighIns = (limit = 20) => this.request<WeighIn[]>(`/profile/weigh-ins?limit=${limit}`);
   getUpcomingWorkouts = () => this.request<UpcomingWorkouts>('/integrations/jarvis/upcoming');
+  getWrapped = (offset = 0) => this.request<WrappedWeekly>(`/wrapped/weekly?offset=${offset}`);
+  getRecipeRecommendations = () =>
+    this.request<RecipeRecommendations>('/recipes/recommendations');
+  getShoppingPredictions = () =>
+    this.request<ShoppingPrediction[]>('/shopping/predictions');
   regenerateNfcBadge = () =>
     this.request<{ token: string; url: string }>('/auth/nfc/regenerate', { method: 'POST' });
   loginWithDevice = (userId: string) =>

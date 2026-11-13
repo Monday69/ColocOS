@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
 import { profileService } from './profile.service';
+import { daysToExpiry, recordStockEvent } from './stockEvent.service';
 import {
   CreateItemDTO,
   ConsumeItemDTO,
@@ -183,6 +184,17 @@ export class InventoryService {
       },
     });
 
+    void recordStockEvent({
+      itemId: item.id,
+      itemName: item.name,
+      zoneId: item.storageZoneId,
+      userId,
+      eventType: 'ADDED',
+      quantityRatio: 1,
+      unitCost: item.unitCost === null ? null : Number(item.unitCost),
+      daysToExpiry: daysToExpiry(item.expiryDate),
+    });
+
     // Log d'activité
     if (userId) {
       await prisma.activityLog.create({
@@ -301,6 +313,34 @@ export class InventoryService {
       `[Inventory] Consommation ${isFullyConsumed ? 'TOTALE' : 'partielle'} : ${item.name} → ${remaining} ${item.unit}`,
     );
 
+    // Journal structuré : la première baisse de quantité vaut « ouverture »
+    const ratio = currentQty > 0 ? Math.min(1, amount / currentQty) : null;
+    const wasUntouched = Math.abs(currentQty - item.initialQuantity) < 0.001;
+
+    if (wasUntouched && !isFullyConsumed) {
+      void recordStockEvent({
+        itemId: item.id,
+        itemName: item.name,
+        zoneId: item.storageZoneId,
+        userId: userId ?? null,
+        eventType: 'OPENED',
+        quantityRatio: ratio,
+        unitCost: item.unitCost === null ? null : Number(item.unitCost),
+        daysToExpiry: daysToExpiry(item.expiryDate),
+      });
+    }
+
+    void recordStockEvent({
+      itemId: item.id,
+      itemName: item.name,
+      zoneId: item.storageZoneId,
+      userId: userId ?? null,
+      eventType: isFullyConsumed ? 'FINISHED' : 'CONSUMED_PARTIAL',
+      quantityRatio: isFullyConsumed ? 1 : ratio,
+      unitCost: item.unitCost === null ? null : Number(item.unitCost),
+      daysToExpiry: daysToExpiry(item.expiryDate),
+    });
+
     // Journal macros : non bloquant (une erreur de tracking ne doit jamais
     // faire échouer une consommation de stock).
     if (userId && (item.calories !== null || item.proteins !== null)) {
@@ -407,6 +447,18 @@ export class InventoryService {
     if (!item) {
       throw new AppError(404, `Item introuvable : ${itemId}`);
     }
+
+    // Suppression volontaire = perte assumée (jeté / périmé)
+    void recordStockEvent({
+      itemId: item.id,
+      itemName: item.name,
+      zoneId: item.storageZoneId,
+      userId: userId ?? null,
+      eventType: 'WASTED',
+      quantityRatio: 1,
+      unitCost: item.unitCost === null ? null : Number(item.unitCost),
+      daysToExpiry: daysToExpiry(item.expiryDate),
+    });
 
     await prisma.item.delete({ where: { id: itemId } });
 
@@ -575,6 +627,17 @@ export class InventoryService {
         ownerId: userId,
       },
       include: { storageZone: true },
+    });
+
+    void recordStockEvent({
+      itemId: created.id,
+      itemName: created.name,
+      zoneId: created.storageZoneId,
+      userId,
+      eventType: 'ADDED',
+      quantityRatio: 1,
+      unitCost: created.unitCost === null ? null : Number(created.unitCost),
+      daysToExpiry: daysToExpiry(created.expiryDate),
     });
 
     await prisma.activityLog.create({

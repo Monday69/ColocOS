@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { recipeController } from '../controllers/recipe.controller';
+import { wrappedController } from '../controllers/wrapped.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,6 +15,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/suggest', recipeController.suggest.bind(recipeController));
+
+// Moteur priorisé : stock + macros restantes + planning Jarvis J+1
+router.get(
+  '/recommendations',
+  wrappedController.recommendations.bind(wrappedController),
+);
 
 // ── Bloc 1 : import par URL & recettes personnalisées ────────────────────────
 // Déclarés avant `/:id` pour que /custom ne soit pas capté comme un identifiant.

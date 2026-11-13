@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, Flame, KeyRound, Loader2, Nfc, Save, ShieldCheck, Target, User, X } from 'lucide-react'
+import { Activity, Flame, KeyRound, Loader2, Nfc, Save, ShieldCheck, Target, Trophy, User, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/api/client'
 import { useAuth } from '@/store'
 import { toasts } from '@/components/ui/ToastProvider'
+import { WrappedModal } from '@/components/ui/WrappedModal'
 import { hapticSuccess, hapticTap } from '@/lib/haptics'
 import type { AthleteGoal, AthleteProfile, AuthMode, NutritionToday, UpcomingWorkouts, WeighIn } from '@/types'
 
@@ -101,6 +102,7 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
   const [today, setToday] = useState<NutritionToday | null>(null)
   const [weighIns, setWeighIns] = useState<WeighIn[]>([])
   const [upcoming, setUpcoming] = useState<UpcomingWorkouts | null>(null)
+  const [wrappedOpen, setWrappedOpen] = useState(false)
 
   // Formulaire biométrique
   const [weight, setWeight] = useState('')
@@ -504,6 +506,19 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
                 {saving ? 'Enregistrement…' : 'Enregistrer & recalculer'}
               </button>
 
+              {/* Accès au recap hebdomadaire */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticTap()
+                  setWrappedOpen(true)
+                }}
+                className="mt-3 w-full h-10 rounded-2xl border border-amber-400/35 bg-amber-400/10 text-amber-300 font-sans text-[11px] tracking-[0.16em] uppercase flex items-center justify-center gap-2 tap hover:bg-amber-400/20 transition-colors"
+              >
+                <Trophy size={13} />
+                Voir mon Wrapped
+              </button>
+
               {/* Pesées */}
               <div className="mt-5">
                 <div className="flex items-center gap-2 mb-1.5">
@@ -644,6 +659,7 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
           )}
         </div>
       </motion.div>
+      <WrappedModal open={wrappedOpen} onClose={() => setWrappedOpen(false)} />
     </AnimatePresence>,
     document.body,
   )

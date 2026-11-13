@@ -110,6 +110,7 @@ model User {
   nutritionLogs    NutritionLog[]
   weighIns         WeighIn[]
   workouts         WorkoutSync[]
+  stockEvents      StockEvent[]
 
   @@map("users")
 }
@@ -565,4 +566,38 @@ model WorkoutSync {
 
   @@index([userId, performedAt])
   @@map("workout_syncs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HISTORISATION DU STOCK — journal structuré des mouvements
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StockEventType {
+  ADDED
+  OPENED
+  CONSUMED_PARTIAL
+  FINISHED
+  WASTED
+}
+
+model StockEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  /// Nullable + SetNull : l'historique survit à la suppression de l'item
+  itemId        String?        @map("item_id") @db.Uuid
+  itemName      String         @map("item_name") @db.VarChar(255)
+  category      String?        @db.VarChar(60)
+  zoneId        String?        @map("zone_id") @db.Uuid
+  userId        String?        @map("user_id") @db.Uuid
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventType     StockEventType @map("event_type")
+  /// 0.25 pour « -25 % », 1.0 pour un ajout ou une fin
+  quantityRatio Float?         @map("quantity_ratio")
+  unitCost      Float?         @map("unit_cost")
+  /// Jours restants avant DLC au moment de l'événement (négatif si périmé)
+  daysToExpiry  Int?           @map("days_to_expiry")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([itemName, eventType, createdAt])
+  @@index([userId, createdAt])
+  @@map("stock_events")
 }

@@ -70,6 +70,64 @@ export interface WorkoutBonus {
   }>
 }
 
+export interface WrappedWeekly {
+  week: { offset: number; start: string; end: string }
+  nutrition: {
+    consumed: { kcal: number; proteinG: number; carbsG: number; fatG: number }
+    targets: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+    workouts: { sessions: number; bonusKcal: number }
+    daysTracked: number
+    mealCount: number
+    mealKcal: number
+  }
+  topFoods: Array<{ label: string; occurrences: number; kcal: number }>
+  antiWaste: {
+    finished: number
+    wasted: number
+    score: number
+    savedEuros: number
+    wastedEuros: number
+  }
+  spending: { totalEuros: number; avgPerMealEuros: number | null; mealsRecorded: number }
+  generatedAt: string
+}
+
+export type RecommendationTag = 'ANTI_GASPI' | 'POST_WORKOUT' | 'CARB_LOAD_J1' | 'MACRO_FIT'
+
+export interface RecipeRecommendation {
+  key: string
+  title: string
+  image: string
+  readyInMinutes: number
+  proteinGrams: number
+  score: number
+  tags: RecommendationTag[]
+  stockIngredients: string[]
+  missingIngredients: string[]
+}
+
+export interface RecipeRecommendations {
+  recommendations: RecipeRecommendation[]
+  context: {
+    carbLoadRecommended: boolean
+    workoutToday: boolean
+    remaining: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+  }
+}
+
+export interface ShoppingPrediction {
+  itemName: string
+  normalized: string
+  confidence: number
+  urgency: 'high' | 'medium' | 'low'
+  reason: string
+  cycles: number
+  averageIntervalDays: number | null
+  lastEventAt: string
+  inStock: boolean
+  remainingRatio: number | null
+}
+
 export interface UpcomingWorkouts {
   available: boolean
   carbLoadRecommended: boolean
