@@ -2,6 +2,7 @@ import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
 import { profileService } from './profile.service';
+import { financeService } from './finance.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Journal nutritionnel (repas enregistrés)
@@ -22,6 +23,8 @@ export interface MealItemInput {
 
 export interface CreateMealInput {
   userId?: string | null;
+  /** Convives : les macros sont réparties équitablement entre eux */
+  participantIds?: string[];
   items: MealItemInput[];
   /** Date métier au format YYYY-MM-DD (défaut : aujourd'hui, heure locale serveur) */
   date?: string;
@@ -39,7 +42,7 @@ const round1 = (value: number): number => Math.round(value * 10) / 10;
 
 class MealJournalService {
   /** POST /api/meals — crée le repas et ses lignes dans une transaction. */
-  async create({ userId, items, date }: CreateMealInput) {
+  async create({ userId, participantIds, items, date }: CreateMealInput) {
     if (items.length === 0) {
       throw new AppError(400, 'Aucun aliment dans le repas.');
     }
@@ -80,22 +83,89 @@ class MealJournalService {
 
       return meal;
     }).then(async (meal) => {
-      // Journal macros : un repas validé compte comme une prise alimentaire.
-      if (userId) {
-        await profileService
-          .logConsumption({
-            userId,
-            label: `Repas · ${items.length} aliment${items.length > 1 ? 's' : ''}`,
-            kcal: totals.calories,
-            proteinG: totals.proteins,
-            carbsG: totals.carbs,
-            fatG: totals.fat,
-            source: 'MEAL',
-          })
-          .catch((err) => logger.warn(`[Nutrition] Journal repas ignoré : ${String(err)}`));
+      // Journal macros : chaque convive est crédité de sa part du repas.
+      const diners = (participantIds && participantIds.length > 0
+        ? Array.from(new Set(participantIds))
+        : userId
+          ? [userId]
+          : []
+      ).slice(0, 12);
+
+      if (diners.length > 0) {
+        const share = 1 / diners.length;
+
+        await Promise.all(
+          diners.map((dinerId) =>
+            profileService
+              .logConsumption({
+                userId: dinerId,
+                label: `Repas · ${items.length} aliment${items.length > 1 ? 's' : ''}`,
+                kcal: totals.calories * share,
+                proteinG: totals.proteins * share,
+                carbsG: totals.carbs * share,
+                fatG: totals.fat * share,
+                source: 'MEAL',
+              })
+              .catch((err) => logger.warn(`[Nutrition] Journal repas ignoré : ${String(err)}`)),
+          ),
+        );
+
+        // Dépense partagée : uniquement si les ingrédients portent un coût
+        if (userId && diners.length > 1) {
+          await this.createSharedExpense({ payerId: userId, dinerIds: diners, items })
+            .catch((err) => logger.warn(`[Finance] Dépense repas ignorée : ${String(err)}`));
+        }
       }
       return meal;
     });
+  }
+
+  /**
+   * Dépense partagée issue d'un repas : somme des `unitCost` des ingrédients
+   * retrouvés en stock (par code-barres, sinon par nom exact), divisée entre
+   * les convives par le module Finance.
+   */
+  private async createSharedExpense(input: {
+    payerId: string;
+    dinerIds: string[];
+    items: Array<{ name: string; barcode?: string | null; grams: number }>;
+  }): Promise<void> {
+    const priced = await prisma.item.findMany({
+      where: {
+        unitCost: { not: null },
+        OR: input.items.map((item) => ({
+          ...(item.barcode ? { barcode: item.barcode } : { name: item.name }),
+        })),
+      },
+      select: { name: true, barcode: true, unitCost: true, unit: true },
+    });
+
+    if (priced.length === 0) return;
+
+    let total = 0;
+    for (const line of input.items) {
+      const match = priced.find(
+        (candidate) =>
+          (line.barcode && candidate.barcode === line.barcode) || candidate.name === line.name,
+      );
+      if (!match || match.unitCost === null) continue;
+
+      const unitCost = Number(match.unitCost);
+      const isWeight = match.unit === 'g' || match.unit === 'ml';
+      total += isWeight ? (unitCost * line.grams) / 100 : unitCost;
+    }
+
+    if (total <= 0) return;
+
+    await financeService.addExpense(
+      {
+        description: `Repas partagé · ${input.items.length} aliment${input.items.length > 1 ? 's' : ''}`,
+        amount: Math.round(total * 100) / 100,
+        category: 'groceries' as never,
+        participantIds: input.dinerIds,
+      } as never,
+      input.payerId,
+    );
   }
 
   /** GET /api/meals/today — récapitulatif du jour pour un utilisateur. */

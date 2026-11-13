@@ -40,6 +40,16 @@ const envSchema = z.object({
   // ── Balance connectée (Xiaomi / Mi Body Composition) ──────────────────────
   // Protège POST /api/profile/weigh-in : la balance ne porte pas de JWT.
   SCALE_DEVICE_KEY: z.string().min(8).default('colocos_scale_device_key'),
+
+  // ── Pont Jarvis Runner (séances & planning) ───────────────────────────────
+  JARVIS_INTEGRATION_KEY: z.string().min(8).default('colocos_jarvis_integration_key'),
+  /// Optionnel : sans URL, /upcoming répond `available: false` sans erreur
+  // `docker compose` injecte une chaîne vide quand la variable n'est pas
+  // définie : on la ramène à `undefined` pour ne pas invalider le schéma.
+  JARVIS_API_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().url().optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

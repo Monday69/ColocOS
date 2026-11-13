@@ -7,7 +7,7 @@ import { api } from '@/api/client'
 import { useAuth } from '@/store'
 import { toasts } from '@/components/ui/ToastProvider'
 import { hapticSuccess, hapticTap } from '@/lib/haptics'
-import type { AthleteGoal, AthleteProfile, AuthMode, NutritionToday, WeighIn } from '@/types'
+import type { AthleteGoal, AthleteProfile, AuthMode, NutritionToday, UpcomingWorkouts, WeighIn } from '@/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — AthleteProfileModal
@@ -100,6 +100,7 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
   const [profile, setProfile] = useState<AthleteProfile | null>(null)
   const [today, setToday] = useState<NutritionToday | null>(null)
   const [weighIns, setWeighIns] = useState<WeighIn[]>([])
+  const [upcoming, setUpcoming] = useState<UpcomingWorkouts | null>(null)
 
   // Formulaire biométrique
   const [weight, setWeight] = useState('')
@@ -133,10 +134,11 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
 
     void (async () => {
       try {
-        const [fresh, todayData, history] = await Promise.all([
+        const [fresh, todayData, history, next] = await Promise.all([
           api.getAthleteProfile(),
           api.getNutritionToday().catch(() => null),
           api.getWeighIns(8).catch(() => [] as WeighIn[]),
+          api.getUpcomingWorkouts().catch(() => null),
         ])
         if (cancelled) return
 
@@ -151,6 +153,7 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
 
         setToday(todayData)
         setWeighIns(history)
+        setUpcoming(next)
       } catch (err) {
         if (!cancelled) {
           toasts.error('Profil indisponible', err instanceof Error ? err.message : undefined)
@@ -329,28 +332,55 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
                 <MacroBar
                   label="CALORIES"
                   consumed={today?.consumed.kcal ?? 0}
-                  target={today?.targets?.kcal ?? profile?.targetKcal ?? 0}
+                  target={today?.effective?.kcal ?? today?.targets?.kcal ?? profile?.targetKcal ?? 0}
                   color="#f59e0b"
                 />
                 <MacroBar
                   label="PROTÉINES"
                   consumed={today?.consumed.proteinG ?? 0}
-                  target={today?.targets?.proteinG ?? profile?.targetProtein ?? 0}
+                  target={today?.effective?.proteinG ?? today?.targets?.proteinG ?? profile?.targetProtein ?? 0}
                   color="#38bdf8"
                 />
                 <MacroBar
                   label="GLUCIDES"
                   consumed={today?.consumed.carbsG ?? 0}
-                  target={today?.targets?.carbsG ?? profile?.targetCarbs ?? 0}
+                  target={today?.effective?.carbsG ?? today?.targets?.carbsG ?? profile?.targetCarbs ?? 0}
                   color="#a78bfa"
                 />
                 <MacroBar
                   label="LIPIDES"
                   consumed={today?.consumed.fatG ?? 0}
-                  target={today?.targets?.fatG ?? profile?.targetFat ?? 0}
+                  target={today?.effective?.fatG ?? today?.targets?.fatG ?? profile?.targetFat ?? 0}
                   color="#f472b6"
                 />
               </div>
+
+              {(today?.workoutBonus?.kcal ?? 0) > 0 && (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2">
+                  <span className="flex items-center gap-1.5 font-sans text-[10px] uppercase tracking-wider text-emerald-300">
+                    <Flame size={11} />
+                    Séance du jour
+                  </span>
+                  <span className="font-mono text-[11px] text-emerald-300 tabular-nums">
+                    +{today?.workoutBonus?.kcal} kcal
+                  </span>
+                </div>
+              )}
+
+              {upcoming?.carbLoadRecommended && (
+                <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <Target size={11} className="text-amber-300" />
+                    <span className="font-sans text-[10px] uppercase tracking-wider text-amber-300">
+                      Recharge glucidique conseillée
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-[9px] text-amber-200/70">
+                    {upcoming.workouts.map((w) => `${w.sportType} ${w.durationMin} min`).join(' · ') ||
+                      'Séance demain'}
+                  </p>
+                </div>
+              )}
 
               {profile && (
                 <div className="mt-2 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 font-mono text-[10px] text-slate-400 tabular-nums">

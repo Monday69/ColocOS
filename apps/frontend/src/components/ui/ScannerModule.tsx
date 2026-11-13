@@ -8,11 +8,11 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '@/api/client';
-import { useScannerStore, useFridgeStore, useAudioStore } from '@/store';
+import { useScannerStore, useFridgeStore, useAudioStore, useAuth } from '@/store';
 import { toasts } from '@/components/ui/ToastProvider';
 import { ZONE_LAYOUT } from '@/lib/zoneLayout';
 import { BarcodeScanEngine } from '@/lib/barcode/scanEngine';
-import { hapticSuccess } from '@/lib/haptics';
+import { hapticSuccess, hapticTap } from '@/lib/haptics';
 import { QuickAddDrawer, type MealSelection } from '@/components/ui/QuickAddDrawer';
 import type { ScannedProduct } from '@/types';
 
@@ -790,6 +790,10 @@ export function ScannerModule() {
   const [nutritionMode, setNutritionMode] = useState<NutritionMode>('stock');
   const [mealItems, setMealItems] = useState<MealLine[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Split multi-convives : qui partage ce repas (moi par défaut)
+  const currentUserId = useAuth((s) => s.user?.id ?? null);
+  const [roommates, setRoommates] = useState<Array<{ id: string; name: string; colorHex: string }>>([]);
+  const [participants, setParticipants] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -849,6 +853,26 @@ export function ScannerModule() {
   };
 
   // Totaux du repas, recalculés à chaque changement de portion
+  useEffect(() => {
+    if (currentUserId) {
+      setParticipants((prev) => (prev.length === 0 ? [currentUserId] : prev));
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (nutritionMode !== 'meal' || roommates.length > 0) return;
+    void api
+      .getRoommates()
+      .then((users) =>
+        setRoommates(
+          users.map((user) => ({ id: user.id, name: user.name, colorHex: user.colorHex })),
+        ),
+      )
+      .catch(() => undefined);
+  }, [nutritionMode, roommates.length]);
+
+  const perPerson = Math.max(1, participants.length);
+
   const mealTotals = useMemo(
     () =>
       mealItems.reduce(
@@ -889,6 +913,7 @@ export function ScannerModule() {
     try {
       const round1 = (value: number) => Math.round(value * 10) / 10;
       const payload = {
+        participantIds: participants.length > 0 ? participants : currentUserId ? [currentUserId] : undefined,
         items: mealItems.map((line) => {
           const factor = line.grams / 100;
           return {
@@ -907,7 +932,9 @@ export function ScannerModule() {
       hapticSuccess();
       toasts.info(
         'Repas enregistré',
-        `${Math.round(mealTotals.prot)} g de protéines sauvegardés !`,
+        participants.length > 1
+          ? `Partagé entre ${participants.length} convives · ${Math.round(mealTotals.prot / perPerson)} g de protéines chacun`
+          : `${Math.round(mealTotals.prot)} g de protéines sauvegardés !`,
       );
       setMealItems([]);
     } catch (err) {
@@ -1135,6 +1162,66 @@ export function ScannerModule() {
                   <div className="label-micro mt-1 !text-[8px]">LIP.</div>
                 </div>
               </div>
+
+              {/* Convives : macros réparties entre les personnes cochées */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between">
+                  <span className="label-micro">CONVIVES</span>
+                  <span className="font-mono text-[9px] text-slate-500 tabular-nums">
+                    {perPerson > 1 ? `÷ ${perPerson} personnes` : 'repas solo'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {(roommates.length > 0
+                    ? roommates
+                    : currentUserId
+                      ? [{ id: currentUserId, name: 'Moi', colorHex: '#3B82F6' }]
+                      : []
+                  ).map((person) => {
+                    const checked = participants.includes(person.id)
+                    return (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => {
+                          hapticTap()
+                          setParticipants((prev) =>
+                            prev.includes(person.id)
+                              ? prev.length > 1
+                                ? prev.filter((id) => id !== person.id)
+                                : prev
+                              : [...prev, person.id],
+                          )
+                        }}
+                        className={clsx(
+                          'flex items-center gap-1.5 pl-1 pr-2.5 h-8 rounded-full border tap transition-colors',
+                          checked
+                            ? 'border-accent/50 bg-accent/15 text-accent'
+                            : 'border-white/10 bg-white/[0.03] text-slate-400',
+                        )}
+                        aria-pressed={checked}
+                      >
+                        <span
+                          className="w-6 h-6 rounded-full flex items-center justify-center font-mono text-[9px] text-white"
+                          style={{ background: person.colorHex }}
+                        >
+                          {person.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="font-sans text-[10px]">{person.name.split(' ')[0]}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {perPerson > 1 && (
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-accent/25 bg-accent/[0.07] px-2.5 py-1.5">
+                  <span className="label-micro">PAR PERSONNE</span>
+                  <span className="font-mono text-[10px] text-accent tabular-nums">
+                    {Math.round(mealTotals.kcal / perPerson)} kcal · {Math.round(mealTotals.prot / perPerson)} g prot
+                  </span>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 mt-3">
                 <button
