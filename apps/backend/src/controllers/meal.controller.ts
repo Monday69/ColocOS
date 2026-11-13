@@ -39,8 +39,10 @@ export class MealController {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const dto = CreateMealSchema.parse(req.body);
-      // L'utilisateur authentifié prime : un client ne peut pas écrire pour un autre
-      const userId = req.user?.id ?? dto.userId ?? null;
+      // L'utilisateur authentifié est la SEULE source de vérité : `dto.userId`
+      // est ignoré (il permettait d'écrire un repas au nom d'un autre profil).
+      const userId = req.user?.id ?? null;
+      if (!userId) throw new AppError(401, 'Non authentifié.');
 
       const meal = await mealJournalService.create({
         userId,

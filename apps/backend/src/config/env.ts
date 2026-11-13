@@ -60,5 +60,27 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+// ── Garde-fou production ──────────────────────────────────────────────────
+// Les clés machine ont des valeurs par défaut pour le développement local.
+// En production, les laisser telles quelles revient à publier la clé : on
+// refuse de démarrer plutôt que d'exposer une API ouverte.
+const INSECURE_DEFAULTS: Array<[string, string]> = [
+  ['SCALE_DEVICE_KEY', 'colocos_scale_device_key'],
+  ['JARVIS_INTEGRATION_KEY', 'colocos_jarvis_integration_key'],
+];
+
+if (parsed.data.NODE_ENV === 'production') {
+  const insecure = INSECURE_DEFAULTS.filter(
+    ([key, value]) => parsed.data[key as keyof typeof parsed.data] === value,
+  ).map(([key]) => key);
+
+  if (insecure.length > 0) {
+    console.error(
+      `❌ Clés machine par défaut en production : ${insecure.join(', ')} — définis-les dans l'environnement.`,
+    );
+    process.exit(1);
+  }
+}
+
 export const env = parsed.data;
 export type Env = typeof env;

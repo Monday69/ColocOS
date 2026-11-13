@@ -313,33 +313,30 @@ export class InventoryService {
       `[Inventory] Consommation ${isFullyConsumed ? 'TOTALE' : 'partielle'} : ${item.name} → ${remaining} ${item.unit}`,
     );
 
-    // Journal structuré : la première baisse de quantité vaut « ouverture »
-    const ratio = currentQty > 0 ? Math.min(1, amount / currentQty) : null;
+    // Journal structuré : la première baisse de quantité vaut « ouverture ».
+    // Les deux écritures sont séquencées (et non lancées en parallèle) pour que
+    // `OPENED` précède toujours `CONSUMED_PARTIAL` dans l'historique.
+    const ratio = currentQty > 0 ? Math.round(Math.min(1, amount / currentQty) * 1000) / 1000 : null;
     const wasUntouched = Math.abs(currentQty - item.initialQuantity) < 0.001;
-
-    if (wasUntouched && !isFullyConsumed) {
-      void recordStockEvent({
-        itemId: item.id,
-        itemName: item.name,
-        zoneId: item.storageZoneId,
-        userId: userId ?? null,
-        eventType: 'OPENED',
-        quantityRatio: ratio,
-        unitCost: item.unitCost === null ? null : Number(item.unitCost),
-        daysToExpiry: daysToExpiry(item.expiryDate),
-      });
-    }
-
-    void recordStockEvent({
+    const baseEvent = {
       itemId: item.id,
       itemName: item.name,
       zoneId: item.storageZoneId,
       userId: userId ?? null,
-      eventType: isFullyConsumed ? 'FINISHED' : 'CONSUMED_PARTIAL',
-      quantityRatio: isFullyConsumed ? 1 : ratio,
       unitCost: item.unitCost === null ? null : Number(item.unitCost),
       daysToExpiry: daysToExpiry(item.expiryDate),
-    });
+    };
+
+    void (async () => {
+      if (wasUntouched && !isFullyConsumed) {
+        await recordStockEvent({ ...baseEvent, eventType: 'OPENED', quantityRatio: ratio });
+      }
+      await recordStockEvent({
+        ...baseEvent,
+        eventType: isFullyConsumed ? 'FINISHED' : 'CONSUMED_PARTIAL',
+        quantityRatio: isFullyConsumed ? 1 : ratio,
+      });
+    })();
 
     // Journal macros : non bloquant (une erreur de tracking ne doit jamais
     // faire échouer une consommation de stock).

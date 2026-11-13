@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { mealController } from '../controllers/meal.controller';
-import { authenticateOptional } from '../middlewares/auth.middleware';
+import { authenticate } from '../middlewares/auth.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Meals Routes (journal nutritionnel)
@@ -9,13 +9,13 @@ import { authenticateOptional } from '../middlewares/auth.middleware';
 // GET  /api/meals/today      → macros du jour + nombre de repas
 // GET  /api/meals/history    → agrégats des N derniers jours
 //
-// `authenticateOptional` : la route reste utilisable sans JWT pendant les
-// tests, mais un token valide rattache le repas à son propriétaire.
+// SÉCURITÉ : session obligatoire. Sans JWT, un appelant pouvait écrire un
+// repas (et un NutritionLog) au nom de n'importe quel `userId` du body.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const router = Router();
 
-router.use(authenticateOptional);
+router.use(authenticate);
 
 router.post('/', mealController.create.bind(mealController));
 router.get('/today', mealController.today.bind(mealController));
