@@ -280,13 +280,27 @@ export class ProfileService {
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
 
-    const [logs, profile] = await Promise.all([
+    const [logs, profile, workouts] = await Promise.all([
       prisma.nutritionLog.findMany({
         where: { userId, consumedAt: { gte: start, lt: end } },
         orderBy: { consumedAt: 'desc' },
       }),
       this.getProfile(userId),
+      prisma.workoutSync.findMany({
+        where: { userId, performedAt: { gte: start, lt: end } },
+        orderBy: { performedAt: 'desc' },
+      }),
     ]);
+
+    // Bonus sportif : les séances du jour élargissent le budget calorique et
+    // sont ventilées 65 % glucides / 20 % protéines / 15 % lipides.
+    const workoutBonusKcal = workouts.reduce((sum, workout) => sum + workout.activeKcal, 0);
+    const bonus = {
+      kcal: workoutBonusKcal,
+      proteinG: Math.round((workoutBonusKcal * 0.2) / 4),
+      carbsG: Math.round((workoutBonusKcal * 0.65) / 4),
+      fatG: Math.round((workoutBonusKcal * 0.15) / 9),
+    };
 
     const totals = logs.reduce(
       (acc, log) => ({
@@ -316,12 +330,33 @@ export class ProfileService {
             fatG: profile.targetFat,
           }
         : null,
+      // Budget effectif = cibles + séances du jour
+      effective: profile
+        ? {
+            kcal: profile.targetKcal + bonus.kcal,
+            proteinG: profile.targetProtein + bonus.proteinG,
+            carbsG: profile.targetCarbs + bonus.carbsG,
+            fatG: profile.targetFat + bonus.fatG,
+          }
+        : null,
+      workoutBonus: {
+        ...bonus,
+        sessions: workouts.map((workout) => ({
+          id: workout.id,
+          sportType: workout.sportType,
+          title: workout.title,
+          durationMin: workout.durationMin,
+          activeKcal: workout.activeKcal,
+          intensityType: workout.intensityType,
+          performedAt: workout.performedAt.toISOString(),
+        })),
+      },
       remaining: profile
         ? {
-            kcal: Math.round(profile.targetKcal - totals.kcal),
-            proteinG: Math.round(profile.targetProtein - totals.proteinG),
-            carbsG: Math.round(profile.targetCarbs - totals.carbsG),
-            fatG: Math.round(profile.targetFat - totals.fatG),
+            kcal: Math.round(profile.targetKcal + bonus.kcal - totals.kcal),
+            proteinG: Math.round(profile.targetProtein + bonus.proteinG - totals.proteinG),
+            carbsG: Math.round(profile.targetCarbs + bonus.carbsG - totals.carbsG),
+            fatG: Math.round(profile.targetFat + bonus.fatG - totals.fatG),
           }
         : null,
       logs: logs.map((log) => ({

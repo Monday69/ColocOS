@@ -54,6 +54,8 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
       SCALE_DEVICE_KEY: ${SCALE_DEVICE_KEY:-colocos_scale_device_key}
+      JARVIS_INTEGRATION_KEY: ${JARVIS_INTEGRATION_KEY:-colocos_jarvis_integration_key}
+      JARVIS_API_URL: ${JARVIS_API_URL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       # Web Push — optionnel : sans clés l'API démarre et désactive l'envoi
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

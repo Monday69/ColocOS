@@ -30,6 +30,8 @@ const CreateMealSchema = z.object({
   userId: z.string().uuid().nullish(),
   date: IsoDate.optional(),
   items: z.array(MealItemSchema).min(1, 'Au moins un aliment requis').max(50),
+  /// Convives du repas : les macros sont divisées entre eux (défaut : soi-même)
+  participantIds: z.array(z.string().uuid()).max(12).optional(),
 });
 
 export class MealController {
@@ -42,6 +44,7 @@ export class MealController {
 
       const meal = await mealJournalService.create({
         userId,
+        participantIds: dto.participantIds,
         date: dto.date,
         items: dto.items.map((item) => ({
           name: item.name,

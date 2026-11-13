@@ -54,10 +54,40 @@ export interface AthleteProfile {
   updatedAt: string
 }
 
+export interface WorkoutBonus {
+  kcal: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  sessions: Array<{
+    id: string
+    sportType: string
+    title: string | null
+    durationMin: number
+    activeKcal: number
+    intensityType: string | null
+    performedAt: string
+  }>
+}
+
+export interface UpcomingWorkouts {
+  available: boolean
+  carbLoadRecommended: boolean
+  reason?: string
+  workouts: Array<{
+    sportType: string
+    title: string | null
+    durationMin: number
+    intensityType: string | null
+  }>
+}
+
 export interface NutritionToday {
   date: string
   consumed: { kcal: number; proteinG: number; carbsG: number; fatG: number }
   targets: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+  effective?: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
+  workoutBonus?: WorkoutBonus
   remaining: { kcal: number; proteinG: number; carbsG: number; fatG: number } | null
   logs: Array<{
     id: string
@@ -272,6 +302,8 @@ export interface LoggedMealPayload {
   userId?: string | null;
   date?: string;
   items: LoggedMealItemPayload[];
+  /** Convives du repas : macros divisées entre eux */
+  participantIds?: string[];
 }
 
 export interface LoggedMealItem extends LoggedMealItemPayload {

@@ -109,6 +109,7 @@ model User {
   profile          UserProfile?
   nutritionLogs    NutritionLog[]
   weighIns         WeighIn[]
+  workouts         WorkoutSync[]
 
   @@map("users")
 }
@@ -181,6 +182,8 @@ model Item {
   expiryNotified Boolean    @default(false) @map("expiry_notified")
 
   // ── Nutrition (Open Food Facts, pour 100 g / 100 ml) ──────────────────────
+  /// Coût unitaire (€ / unité ou / 100 g) — sert à générer une dépense Finance
+  unitCost      Decimal?    @map("unit_cost") @db.Decimal(10, 2)
   calories      Float?      // kcal
   proteins      Float?      // g
   carbohydrates Float?      // g
@@ -537,4 +540,29 @@ model WeighIn {
 
   @@index([userId, measuredAt])
   @@map("weigh_ins")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PONT JARVIS RUNNER — séances importées (ajustement calorique du jour)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkoutSync {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Idempotence : une même séance renvoyée deux fois n'est pas dupliquée
+  externalId    String?  @unique @map("external_id") @db.VarChar(120)
+  /// RUN | BIKE | CLIMB | STRENGTH | OTHER
+  sportType     String   @map("sport_type") @db.VarChar(16)
+  title         String?  @db.VarChar(160)
+  durationMin   Int      @map("duration_min")
+  activeKcal    Int      @map("active_kcal")
+  triScore      Float?   @map("tri_score")
+  /// RECOVERY | ENDURANCE | THRESHOLD | VO2MAX | RACE
+  intensityType String?  @map("intensity_type") @db.VarChar(16)
+  performedAt   DateTime @default(now()) @map("performed_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, performedAt])
+  @@map("workout_syncs")
 }
