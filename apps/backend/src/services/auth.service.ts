@@ -382,15 +382,16 @@ export class AuthService {
    * Lien magique NFC : régénère le jeton du badge et renvoie l'URL à écrire
    * dans un raccourci iOS. L'ancien jeton est immédiatement invalidé.
    */
-  async regenerateNfcToken(userId: string): Promise<{ token: string; url: string }> {
+  async regenerateNfcToken(userId: string): Promise<{ token: string }> {
     const token = randomUUID();
 
     await prisma.user.update({ where: { id: userId }, data: { nfcToken: token } });
 
-    const base = env.PUBLIC_API_URL ?? `http://localhost/api`;
     logger.info(`[Auth] Badge NFC régénéré pour ${userId}`);
 
-    return { token, url: `${base}/auth/nfc?token=${token}` };
+    // L'URL publique dépend de la requête (tunnel, LAN, VPS) : c'est le
+    // contrôleur qui la compose via `resolvePublicOrigin`.
+    return { token };
   }
 
   /** Ouvre une session à partir du jeton NFC (lien magique). */

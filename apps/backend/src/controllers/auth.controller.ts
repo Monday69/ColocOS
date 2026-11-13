@@ -10,7 +10,7 @@ import {
   SetupPinSchema,
   UpdatePinSchema,
 } from '../dtos/auth.dto';
-import { env } from '../config/env';
+import { buildNfcUrl } from '../utils/publicOrigin';
 import { AppError } from '../middlewares/errorHandler';
 import { ApiResponse, AuthUser } from '../types';
 
@@ -192,8 +192,15 @@ export class AuthController {
   async regenerateNfc(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) throw new AppError(401, 'Non authentifié.');
-      const data = await authService.regenerateNfcToken(req.user.id);
-      res.status(200).json({ success: true, data } satisfies ApiResponse);
+      const { token } = await authService.regenerateNfcToken(req.user.id);
+
+      // URL prête à écrire sur le badge : origine réellement utilisée par le
+      // client (trycloudflare.com, 192.168.x.x, domaine du VPS…), jamais
+      // `localhost` quand la requête passe par un proxy.
+      res.status(200).json({
+        success: true,
+        data: { token, url: buildNfcUrl(req, token) },
+      } satisfies ApiResponse);
     } catch (err) {
       next(err);
     }
@@ -211,10 +218,11 @@ export class AuthController {
       const token = String(req.query.token ?? '');
       const result = await authService.loginWithNfcToken(token);
 
-      const target = `${env.FRONTEND_URL}/#nfc=${encodeURIComponent(result.tokens.accessToken)}`;
-      res.redirect(302, target);
+      // Redirection RELATIVE : le navigateur reste sur le domaine courant
+      // (tunnel, LAN, VPS) au lieu d'être renvoyé vers `localhost`.
+      res.redirect(302, `/#nfc=${encodeURIComponent(result.tokens.accessToken)}`);
     } catch {
-      res.redirect(302, `${env.FRONTEND_URL}/#nfc-error=1`);
+      res.redirect(302, '/#nfc-error=1');
     }
   }
 

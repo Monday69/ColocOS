@@ -27,8 +27,6 @@ const envSchema = z.object({
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   FRONTEND_URL: z.string().default('http://localhost:5173'),
-  /// Base publique de l'API (liens magiques NFC, partages)
-  PUBLIC_API_URL: z.string().default('http://localhost/api'),
 
   // ── Web Push (PWA) ────────────────────────────────────────────────────────
   // Optionnels : sans ces clés l'API démarre normalement, le service push
