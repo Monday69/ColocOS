@@ -12,6 +12,7 @@ import type {
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
   LoggedMeal, LoggedMealPayload, MealDaySummary, MealDayHistory,
+  RegisterPayload, AuthSession,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -22,6 +23,7 @@ const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env
  * logout global (sinon un mauvais PIN affiche « Session expirée »).
  */
 const PUBLIC_AUTH_PATHS = [
+  '/auth/request-invite',
   '/auth/login',
   '/auth/login-pin',
   '/auth/setup-pin',
@@ -49,6 +51,19 @@ class ApiClient {
     if (!response.ok || !body.success) throw new Error(body.error ?? `HTTP ${response.status}`);
     return body.data as T;
   }
+
+  // Inscription sur demande (approbation administrateur)
+  requestInvite = (payload: { name: string; email: string }) =>
+    this.request<null>('/auth/request-invite', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+  register = (payload: RegisterPayload) =>
+    this.request<AuthSession>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
 
   // Fridge
   getFridgeState = () => this.request<FridgeStateTwin>('/fridge/state');

@@ -6,6 +6,9 @@ import { authenticate } from '../middlewares/auth.middleware';
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Auth Routes
 //
+// POST   /api/auth/request-invite    → Demande d'accès (public, rate-limited strict)
+// GET    /api/auth/approve-invite    → Formulaire d'approbation (admin)
+// POST   /api/auth/approve-invite    → Validation + envoi du code (admin)
 // POST   /api/auth/register          → Inscription (public, rate-limited)
 // POST   /api/auth/login             → Connexion (public, rate-limited)
 // POST   /api/auth/refresh           → Renouvellement access token (public)
@@ -31,8 +34,30 @@ const authRateLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// Rate limiter strict pour la création de demandes d'accès : une demande
+// envoie un email à l'administrateur, il faut la protéger du spam.
+const inviteRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 heure
+  max: 3, // 3 demandes max par IP par heure
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Trop de demandes. Veuillez réessayer dans une heure.',
+  },
+});
+
 // ── Routes publiques (pas d'auth requise) ─────────────────────────────────────
 router.get('/profiles', authController.profiles.bind(authController));
+
+// Inscription sur demande (approbation administrateur par email)
+router.post(
+  '/request-invite',
+  inviteRequestLimiter,
+  authController.requestInvite.bind(authController),
+);
+router.get('/approve-invite', authController.approveInvitePage.bind(authController));
+router.post('/approve-invite', authController.approveInvite.bind(authController));
 
 router.post(
   '/register',

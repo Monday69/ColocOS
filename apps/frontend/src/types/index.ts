@@ -747,3 +747,20 @@ export interface QuickAddResult {
     category: string;
   } | null;
 }
+
+// ── Inscription sur demande ──────────────────────────────────────────────────
+
+/** Session renvoyée par /auth/login et /auth/register. */
+export interface AuthSession {
+  user: AuthUser;
+  tokens: { accessToken: string; refreshToken: string };
+}
+
+/** Corps de POST /auth/register (code maître ou code d'invitation personnel). */
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  inviteCode: string;
+  colorHex?: string;
+}

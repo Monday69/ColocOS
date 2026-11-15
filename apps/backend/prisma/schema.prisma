@@ -601,3 +601,36 @@ model StockEvent {
   @@index([userId, createdAt])
   @@map("stock_events")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INSCRIPTION SUR DEMANDE — approbation administrateur par email
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum InviteRequestStatus {
+  PENDING
+  APPROVED
+  USED
+  EXPIRED
+}
+
+/// Demande d'accès déposée depuis l'écran de connexion.
+/// L'administrateur reçoit un email avec un lien d'approbation ; une fois
+/// approuvée, la demande porte un `code` à usage unique que le demandeur
+/// saisit dans le formulaire d'inscription.
+model InviteRequest {
+  id            String              @id @default(uuid()) @db.Uuid
+  name          String              @db.VarChar(100)
+  email         String              @db.VarChar(255)
+  /// Code d'invitation à usage unique (format `COLOC-XXXX`)
+  code          String              @unique @db.VarChar(40)
+  /// Jeton du lien d'approbation (32 octets hex)
+  approvalToken String              @unique @map("approval_token") @db.VarChar(64)
+  status        InviteRequestStatus @default(PENDING)
+  expiresAt     DateTime            @map("expires_at") @db.Timestamptz
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  approvedAt    DateTime?           @map("approved_at") @db.Timestamptz
+
+  @@index([email, status])
+  @@index([expiresAt])
+  @@map("invite_requests")
+}

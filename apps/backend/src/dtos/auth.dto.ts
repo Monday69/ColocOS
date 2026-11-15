@@ -145,3 +145,19 @@ export const UpdatePinSchema = z.object({
 });
 
 export type UpdatePinDTO = z.infer<typeof UpdatePinSchema>;
+
+// ── Inscription sur demande ─────────────────────────────────────────────────
+
+export const RequestInviteSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Le prénom doit contenir au moins 2 caractères')
+    .max(100, 'Le prénom ne peut pas dépasser 100 caractères')
+    .regex(/^[a-zA-ZÀ-ÿ\s\-']+$/, 'Le prénom contient des caractères invalides'),
+  email: emailSchema,
+  /** Champ piège : rempli par les robots, doit rester vide. */
+  website: z.string().max(0).optional(),
+});
+
+export type RequestInviteDTO = z.infer<typeof RequestInviteSchema>;

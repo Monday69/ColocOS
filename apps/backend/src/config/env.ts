@@ -64,6 +64,19 @@ const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().min(8, 'INVITE_CODE doit faire au moins 8 caractères').optional(),
   ),
+
+  // ── Emails d'invitation (Resend) ──────────────────────────────────────────
+  // Toutes optionnelles : sans clé, l'API continue de fonctionner et se
+  // contente de journaliser le lien d'approbation et le code généré.
+  RESEND_API_KEY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(10, 'RESEND_API_KEY invalide').optional(),
+  ),
+  MAIL_FROM: z.string().default('ColocOS <noreply@example.com>'),
+  ADMIN_EMAIL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().email('ADMIN_EMAIL doit être un email valide').optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

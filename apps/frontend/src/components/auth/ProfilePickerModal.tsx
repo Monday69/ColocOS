@@ -71,9 +71,15 @@ export interface ProfilePickerProps {
   onAuthenticated?: () => void
   /** Lien de repli vers la connexion email/mot de passe */
   onUsePassword?: () => void
+  /** Lien vers le formulaire de demande d'accès (approbation administrateur) */
+  onRequestAccess?: () => void
+  /** Lien vers le formulaire d'inscription avec code d'invitation */
+  onUseInviteCode?: () => void
 }
 
-export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerProps) {
+export function ProfilePicker(
+  { onAuthenticated, onUsePassword, onRequestAccess, onUseInviteCode }: ProfilePickerProps,
+) {
   const setAuth = useAuth((state) => state.setAuth)
 
   const [profiles, setProfiles] = useState<RoommateProfile[]>([])
@@ -316,7 +322,7 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-center">
+        <div className="mt-6 flex flex-col items-center gap-2">
           {onUsePassword && (
             <button
               type="button"
@@ -325,6 +331,28 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
             >
               + Connexion par mot de passe
             </button>
+          )}
+          {(onUseInviteCode || onRequestAccess) && (
+            <div className="flex items-center gap-3">
+              {onUseInviteCode && (
+                <button
+                  type="button"
+                  onClick={onUseInviteCode}
+                  className="font-mono text-2xs text-text-tertiary hover:text-accent transition-colors"
+                >
+                  J&apos;ai un code
+                </button>
+              )}
+              {onRequestAccess && (
+                <button
+                  type="button"
+                  onClick={onRequestAccess}
+                  className="font-mono text-2xs text-text-tertiary hover:text-accent transition-colors"
+                >
+                  Demander un accès
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -463,7 +491,15 @@ export function ProfilePicker({ onAuthenticated, onUsePassword }: ProfilePickerP
 }
 
 /** Conteneur plein écran (Liquid Glass) du sélecteur. */
-export function ProfilePickerModal({ onUsePassword }: { onUsePassword?: () => void }) {
+export function ProfilePickerModal({
+  onUsePassword,
+  onRequestAccess,
+  onUseInviteCode,
+}: {
+  onUsePassword?: () => void
+  onRequestAccess?: () => void
+  onUseInviteCode?: () => void
+}) {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-xl px-4">
       <AnimatePresence>
@@ -474,7 +510,11 @@ export function ProfilePickerModal({ onUsePassword }: { onUsePassword?: () => vo
           className="w-full max-w-sm rounded-[26px] border border-white/10 bg-slate-900/70
                      backdrop-blur-2xl backdrop-saturate-150 px-4 py-5 shadow-glass-lg"
         >
-          <ProfilePicker onUsePassword={onUsePassword} />
+          <ProfilePicker
+            onUsePassword={onUsePassword}
+            onRequestAccess={onRequestAccess}
+            onUseInviteCode={onUseInviteCode}
+          />
         </motion.div>
       </AnimatePresence>
     </div>

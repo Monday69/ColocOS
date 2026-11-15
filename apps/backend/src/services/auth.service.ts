@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from '@prisma/client';
+import { InviteRequestStatus, User } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
@@ -85,9 +85,30 @@ export class AuthService {
    */
   async register(data: RegisterDTO): Promise<LoginResult> {
     // ── Code d'invitation ─────────────────────────────────────────────────────
-    // Sans lui, l'URL publique suffirait pour rejoindre la coloc.
-    if (env.INVITE_CODE && !safeEqual(data.inviteCode, env.INVITE_CODE)) {
-      throw new AppError(403, "Code d'invitation invalide.");
+    // Deux voies :
+    //   1. le code maître `INVITE_CODE` (démo, partage manuel)
+    //   2. une InviteRequest APPROVED, non expirée, portant ce code ET cette
+    //      adresse email — sans elle, un code fuité servirait pour n'importe qui
+    const submittedCode = (data.inviteCode ?? '').trim();
+    const masterAccepted =
+      Boolean(env.INVITE_CODE) &&
+      submittedCode.length > 0 &&
+      safeEqual(submittedCode, env.INVITE_CODE as string);
+
+    const invitation = !masterAccepted && submittedCode
+      ? await prisma.inviteRequest.findFirst({
+          where: {
+            code: submittedCode,
+            email: data.email.trim().toLowerCase(),
+            status: InviteRequestStatus.APPROVED,
+            expiresAt: { gt: new Date() },
+          },
+        })
+      : null;
+
+    // Sans `INVITE_CODE` configuré, le mode démo laisse l'inscription ouverte.
+    if (env.INVITE_CODE && !masterAccepted && !invitation) {
+      throw new AppError(403, "Code d'invitation invalide ou expiré.");
     }
 
     // ── Vérification unicité email ────────────────────────────────────────────
@@ -106,15 +127,28 @@ export class AuthService {
     // ── Hachage du mot de passe ───────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
 
-    // ── Création utilisateur ──────────────────────────────────────────────────
-    const user = await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        password: hashedPassword,
-        colorHex: data.colorHex,
-        avatarUrl: data.avatarUrl ?? null,
-      },
+    // ── Création utilisateur (+ consommation du code d'invitation) ────────────
+    // Le passage à USED est atomique avec la création du compte : pas de code
+    // réutilisable si l'écriture échoue en cours de route.
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          password: hashedPassword,
+          colorHex: data.colorHex,
+          avatarUrl: data.avatarUrl ?? null,
+        },
+      });
+
+      if (invitation) {
+        await tx.inviteRequest.update({
+          where: { id: invitation.id },
+          data: { status: InviteRequestStatus.USED },
+        });
+      }
+
+      return created;
     });
 
     // ── Log d'activité ────────────────────────────────────────────────────────
