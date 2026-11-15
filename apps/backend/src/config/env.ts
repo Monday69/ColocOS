@@ -48,6 +48,22 @@ const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().url().optional(),
   ),
+
+  // ── Borne NFC (Hybrid-Pay) ────────────────────────────────────────────────
+  // Protège POST /api/finance/settle-nfc (header X-Terminal-Secret).
+  // Obligatoire en production, optionnel en développement.
+  TERMINAL_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(16, 'TERMINAL_SECRET doit faire au moins 16 caractères').optional(),
+  ),
+
+  // ── Code d'invitation ─────────────────────────────────────────────────────
+  // Exigé par POST /api/auth/register. Obligatoire en production : sans lui,
+  // n'importe qui connaissant l'URL publique pourrait rejoindre la coloc.
+  INVITE_CODE: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(8, 'INVITE_CODE doit faire au moins 8 caractères').optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -65,7 +81,13 @@ if (!parsed.success) {
 const INSECURE_DEFAULTS: Array<[string, string]> = [
   ['SCALE_DEVICE_KEY', 'colocos_scale_device_key'],
   ['JARVIS_INTEGRATION_KEY', 'colocos_jarvis_integration_key'],
+  // Anciennes valeurs par défaut du docker-compose : publiques, donc inutilisables
+  ['JWT_SECRET', 'colocos_dev_jwt_secret_change_me_0123456789'],
+  ['JWT_REFRESH_SECRET', 'colocos_dev_refresh_secret_change_me_0123456789'],
 ];
+
+// Secrets sans valeur par défaut mais indispensables dès que l'API est exposée
+const REQUIRED_IN_PRODUCTION = ['TERMINAL_SECRET', 'INVITE_CODE'] as const;
 
 if (parsed.data.NODE_ENV === 'production') {
   const insecure = INSECURE_DEFAULTS.filter(
@@ -75,6 +97,19 @@ if (parsed.data.NODE_ENV === 'production') {
   if (insecure.length > 0) {
     console.error(
       `❌ Clés machine par défaut en production : ${insecure.join(', ')} — définis-les dans l'environnement.`,
+    );
+    process.exit(1);
+  }
+
+  if (parsed.data.JWT_SECRET === parsed.data.JWT_REFRESH_SECRET) {
+    console.error('❌ JWT_SECRET et JWT_REFRESH_SECRET doivent être différents en production.');
+    process.exit(1);
+  }
+
+  const missing = REQUIRED_IN_PRODUCTION.filter((key) => !parsed.data[key]);
+  if (missing.length > 0) {
+    console.error(
+      `❌ Variables obligatoires en production manquantes : ${missing.join(', ')}.`,
     );
     process.exit(1);
   }

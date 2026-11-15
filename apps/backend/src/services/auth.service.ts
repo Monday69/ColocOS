@@ -8,6 +8,7 @@ import { logger } from '../config/logger';
 import { AppError } from '../middlewares/errorHandler';
 import { RegisterDTO, LoginDTO, UpdateProfileDTO } from '../dtos/auth.dto';
 import { AuthUser, JwtPayload } from '../types';
+import { safeEqual } from '../utils/safeCompare';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Auth Service
@@ -83,6 +84,12 @@ export class AuthService {
    * @throws AppError(409) si l'email est déjà utilisé
    */
   async register(data: RegisterDTO): Promise<LoginResult> {
+    // ── Code d'invitation ─────────────────────────────────────────────────────
+    // Sans lui, l'URL publique suffirait pour rejoindre la coloc.
+    if (env.INVITE_CODE && !safeEqual(data.inviteCode, env.INVITE_CODE)) {
+      throw new AppError(403, "Code d'invitation invalide.");
+    }
+
     // ── Vérification unicité email ────────────────────────────────────────────
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },

@@ -45,6 +45,8 @@ export const RegisterSchema = z.object({
     .optional()
     .default('#6366F1'),
   avatarUrl: z.string().url('URL d\'avatar invalide').optional().nullable(),
+  /// Exigé quand INVITE_CODE est configuré (toujours le cas en production)
+  inviteCode: z.string().trim().max(100).optional(),
 });
 
 export type RegisterDTO = z.infer<typeof RegisterSchema>;

@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { financeController } from '../controllers/finance.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
+import { safeEqual } from '../utils/safeCompare';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Finance Routes
@@ -22,12 +25,13 @@ const router = Router();
 // Doit être déclarée AVANT router.use(authenticate) pour ne pas être protégée.
 // Sécurisée par un secret de borne partagé (X-Terminal-Secret).
 router.post('/settle-nfc', (req, res, next) => {
-  const secret = req.headers['x-terminal-secret'];
-  const expected = process.env.TERMINAL_SECRET;
+  const expected = env.TERMINAL_SECRET;
 
-  // Si TERMINAL_SECRET non configuré en env → log d'avertissement + on laisse passer
-  // (permissif en dev, strict en prod)
-  if (expected && secret !== expected) {
+  // Production : TERMINAL_SECRET est garanti par config/env.ts.
+  // Développement sans secret : on laisse passer, avec un avertissement.
+  if (!expected) {
+    logger.warn('[Finance] settle-nfc appelé sans TERMINAL_SECRET configuré (mode dev).');
+  } else if (!safeEqual(req.headers['x-terminal-secret'], expected)) {
     res.status(401).json({ success: false, error: 'Secret de borne invalide.' });
     return;
   }

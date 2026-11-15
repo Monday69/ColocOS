@@ -4,18 +4,24 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Le seed vide la liste de courses et réécrit les profils : jamais en production.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_PRODUCTION !== 'true') {
+    console.error('❌ Seed refusé en production (SEED_ALLOW_PRODUCTION=true pour forcer).');
+    process.exit(1);
+  }
+
   console.log('🧹 Initialisation ColocOS — Démarrage à blanc...\n');
 
-  // ── 1. Tes potes et toi ───────────────────────────────────────────────────
-  // Modifie simplement les prénoms et emails ici :
+  // ── 1. Colocataires de démonstration (profils fictifs) ────────────────────
+  // Remplace-les par les vrais prénoms et emails de ta coloc en local.
   const roommates = [
-    { name: 'Mattéo Bombrun',  email: 'matteo@colocos.local',  colorHex: '#3B82F6' },
-    { name: 'Mattéo Bergeron', email: 'pote1@colocos.local',   colorHex: '#10B981' },
-    { name: 'Tom Valette',  email: 'pote2@colocos.local',   colorHex: '#F59E0B' },
-    { name: 'Aymeric Bonnans',  email: 'pote3@colocos.local',   colorHex: '#EC4899' },
-    { name: 'Mathys Gerrer',  email: 'pote4@colocos.local',   colorHex: '#8B5CF6' },
-    { name: 'Roméo Blanchet',  email: 'pote5@colocos.local',   colorHex: '#EF4444' },
-    { name: 'Corentin Haverlant',  email: 'pote6@colocos.local',   colorHex: '#E08544' },
+    { name: 'Mattéo',  email: 'matteo@colocos.local',  colorHex: '#3B82F6' },
+    { name: 'Léa',     email: 'pote1@colocos.local',   colorHex: '#10B981' },
+    { name: 'Hugo',    email: 'pote2@colocos.local',   colorHex: '#F59E0B' },
+    { name: 'Inès',    email: 'pote3@colocos.local',   colorHex: '#EC4899' },
+    { name: 'Nathan',  email: 'pote4@colocos.local',   colorHex: '#8B5CF6' },
+    { name: 'Chloé',   email: 'pote5@colocos.local',   colorHex: '#EF4444' },
+    { name: 'Lucas',   email: 'pote6@colocos.local',   colorHex: '#E08544' },
   ];
 
   // Mot de passe unique par défaut pour tout le monde en dev

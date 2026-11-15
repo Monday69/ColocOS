@@ -19,11 +19,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-colocos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-colocos_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant (voir .env.docker.example)}
       POSTGRES_DB: ${POSTGRES_DB:-colocos_db}
     ports:
-      # Publié pour le développement local (psql, Prisma Studio…)
-      - "${POSTGRES_PORT:-5433}:5432"
+      # Publié pour le développement local (psql, Prisma Studio…), sur la
+      # machine uniquement : pas accessible depuis le reste du réseau
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./apps/backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -48,13 +49,16 @@ services:
       NODE_ENV: production
       PORT: 3001
       TZ: ${TZ:-Europe/Paris}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-colocos}:${POSTGRES_PASSWORD:-colocos_secret}@db:5432/${POSTGRES_DB:-colocos_db}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-colocos_dev_jwt_secret_change_me_0123456789}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-colocos_dev_refresh_secret_change_me_0123456789}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-colocos}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-colocos_db}?schema=public
+      # Secrets obligatoires : pas de valeur par défaut (le dépôt est public)
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant (voir .env.docker.example)}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manquant (voir .env.docker.example)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
-      SCALE_DEVICE_KEY: ${SCALE_DEVICE_KEY:-colocos_scale_device_key}
-      JARVIS_INTEGRATION_KEY: ${JARVIS_INTEGRATION_KEY:-colocos_jarvis_integration_key}
+      SCALE_DEVICE_KEY: ${SCALE_DEVICE_KEY:?SCALE_DEVICE_KEY manquant (voir .env.docker.example)}
+      JARVIS_INTEGRATION_KEY: ${JARVIS_INTEGRATION_KEY:?JARVIS_INTEGRATION_KEY manquant (voir .env.docker.example)}
+      TERMINAL_SECRET: ${TERMINAL_SECRET:?TERMINAL_SECRET manquant (voir .env.docker.example)}
+      INVITE_CODE: ${INVITE_CODE:?INVITE_CODE manquant (voir .env.docker.example)}
       JARVIS_API_URL: ${JARVIS_API_URL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       # Web Push — optionnel : sans clés l'API démarre et désactive l'envoi
@@ -114,11 +118,11 @@ services:
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@colocos.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD manquant (voir .env.docker.example)}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
@@ -132,13 +136,13 @@ services:
     image: redis:7-alpine
     container_name: colocos_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD manquant (voir .env.docker.example)}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
