@@ -35,17 +35,22 @@ export class ProfileController {
     try {
       const body = (req.body ?? {}) as Partial<ProfilePayload>;
 
+      // `goal` doit appartenir à l'enum Prisma : sans ce contrôle, une valeur
+      // inconnue produisait des cibles NaN et une erreur 500 opaque.
+      const GOALS = ['MAINTAIN', 'BULK', 'CUT', 'CARB_LOAD'] as const;
+      const goal = GOALS.find((value) => value === (body as { goal?: unknown }).goal);
+
       if (
         typeof body.heightCm !== 'number' ||
         typeof body.weightKg !== 'number' ||
         typeof body.birthDate !== 'string' ||
         (body.sex !== 'M' && body.sex !== 'F') ||
         typeof body.activityFactor !== 'number' ||
-        !body.goal
+        !goal
       ) {
         throw new AppError(
           400,
-          'Champs requis : heightCm, weightKg, birthDate (YYYY-MM-DD), sex (M|F), activityFactor, goal.',
+          `Champs requis : heightCm, weightKg, birthDate (YYYY-MM-DD), sex (M|F), activityFactor, goal (${GOALS.join('|')}).`,
         );
       }
 
@@ -55,7 +60,7 @@ export class ProfileController {
         birthDate: body.birthDate,
         sex: body.sex as Sex,
         activityFactor: body.activityFactor,
-        goal: body.goal,
+        goal,
       });
 
       res.status(200).json({ success: true, data: profile } satisfies ApiResponse);

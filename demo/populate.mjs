@@ -8,12 +8,13 @@ const USERS = ['matteo', 'pote1', 'pote2', 'pote3', 'pote4', 'pote5', 'pote6'];
 
 const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString();
 
-async function call(method, path, token, body) {
+async function call(method, path, token, body, extraHeaders = {}) {
   const res = await fetch(`${API}${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -98,4 +99,47 @@ for (const [name, quantity, unit] of SHOPPING) {
   await call('POST', '/shopping/items', me, { name, quantity, unit });
 }
 console.log(`courses : ${SHOPPING.length}`);
+
+// ── Profil athlète (nutrition) ───────────────────────────────────────────────
+// Sans profil, l'écran « Nutrition & Stats » affiche 0 / 0 : on en crée un
+// pour que la démo montre des cibles calculées par le serveur (Mifflin-St Jeor).
+await call('PUT', '/profile', me, {
+  heightCm: 178,
+  weightKg: 74,
+  birthDate: '1998-04-12',
+  sex: 'M',
+  activityFactor: 1.725,
+  goal: 'BULK',
+});
+console.log('profil athlète : 178 cm / 74 kg · objectif prise de masse');
+
+// Pesées : la balance n'a pas de JWT, elle s'authentifie avec X-Device-Key
+const DEVICE_KEY = process.env.SCALE_DEVICE_KEY ?? 'demo_scale_key';
+const WEIGH_INS = [74.6, 74.3, 74.0];
+for (const weightKg of WEIGH_INS) {
+  await call(
+    'POST',
+    '/profile/weigh-in',
+    null,
+    { weightKg, userId: sessions.matteo.id },
+    { 'x-device-key': DEVICE_KEY },
+  );
+}
+console.log(`pesées : ${WEIGH_INS.length}`);
+
+// Repas du jour : journal nutritionnel et macros consommées
+const MEALS = [
+  [
+    { name: 'Flocons d’avoine', grams: 80, calories: 298, proteins: 10.8, carbs: 47, fat: 5.6 },
+    { name: 'Skyr vanille', grams: 150, calories: 116, proteins: 14.3, carbs: 12, fat: 0.3 },
+  ],
+  [
+    { name: 'Blancs de poulet', grams: 180, calories: 198, proteins: 41.4, carbs: 0, fat: 3.2 },
+    { name: 'Riz basmati', grams: 120, calories: 421, proteins: 9.6, carbs: 93.6, fat: 0.7 },
+  ],
+];
+for (const items of MEALS) {
+  await call('POST', '/meals', me, { items });
+}
+console.log(`repas du jour : ${MEALS.length}`);
 console.log('\nDémo prête. Connexion : profil « Mattéo » (pas de PIN).');
