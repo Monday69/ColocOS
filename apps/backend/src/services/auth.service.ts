@@ -548,8 +548,17 @@ export class AuthService {
     // En production, poser le premier PIN exige de prouver qu'on est le
     // titulaire : soit une session ouverte sur ce compte, soit son mot de passe.
     if (IS_PRODUCTION && proof.sessionUserId !== user.id) {
+      // Compte sans hash exploitable (créé hors inscription) : on ne compare
+      // rien et on renvoie vers l'administrateur plutôt que d'échouer en 500
+      const storedHash = user.password ?? '';
+      if (!storedHash.startsWith('$2')) {
+        throw new AppError(
+          403,
+          "Aucun mot de passe défini sur ce compte : contacte l'administrateur de la coloc.",
+        );
+      }
       const passwordOk = proof.password
-        ? await bcrypt.compare(proof.password, user.password)
+        ? await bcrypt.compare(proof.password, storedHash)
         : false;
       if (!passwordOk) {
         throw new AppError(401, 'Mot de passe du compte requis pour créer ton code PIN.');
