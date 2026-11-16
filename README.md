@@ -114,7 +114,7 @@ Shared-tablet first: a profile picker with a 4-digit PIN, an optional username +
 
 ```bash
 cp .env.docker.example .env
-# Set at least POSTGRES_PASSWORD, JWT_SECRET and JWT_REFRESH_SECRET
+# Replace every placeholder (openssl rand -hex 32): compose refuses to start without them
 
 docker compose up -d --build
 ```
@@ -173,12 +173,13 @@ Everything below is optional unless marked. See `apps/backend/.env.example`.
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | — | Token signing (**required**, ≥ 32 chars) |
 | `PORT` | `3001` | API port |
 | `FRONTEND_URL` | `http://localhost:5173` | Public origin, also used for CORS |
-| `INVITE_CODE` | empty | Legacy master invitation code; empty = open registration (demo mode) |
+| `INVITE_CODE` | empty | Master invitation code (**required in production**; empty = open registration, local demo only) |
+| `TERMINAL_SECRET` | empty | `X-Terminal-Secret` of the NFC payment terminal (**required in production**) |
 | `RESEND_API_KEY` | empty | Resend API key. **Without it, invitation emails are logged to the console** |
 | `MAIL_FROM` | `ColocOS <noreply@example.com>` | Verified sender address |
 | `ADMIN_EMAIL` | empty | Recipient of access requests |
-| `SCALE_DEVICE_KEY` | empty | Shared secret for the BLE scale bridge |
-| `JARVIS_INTEGRATION_KEY` | empty | Shared secret for the training-app bridge |
+| `SCALE_DEVICE_KEY` | dev value | Shared secret for the BLE scale bridge (must be changed in production) |
+| `JARVIS_INTEGRATION_KEY` | dev value | Shared secret for the training-app bridge (must be changed in production) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | empty | Web Push (expiry notifications) |
 
 Secrets are validated with Zod at boot, and the API refuses to start in production with the example values.
