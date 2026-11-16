@@ -10,6 +10,8 @@ import { RegisterDTO, LoginDTO, UpdateProfileDTO } from '../dtos/auth.dto';
 import { AuthUser, JwtPayload } from '../types';
 import { safeEqual } from '../utils/safeCompare';
 
+const IS_PRODUCTION = env.NODE_ENV === 'production';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Auth Service
 //
@@ -138,6 +140,8 @@ export class AuthService {
           password: hashedPassword,
           colorHex: data.colorHex,
           avatarUrl: data.avatarUrl ?? null,
+          // Sur un serveur exposé, aucun profil ne s'ouvre sans code
+          authMode: IS_PRODUCTION ? 'PIN_ONLY' : 'AUTO_DEVICE',
         },
       });
 
@@ -334,6 +338,11 @@ export class AuthService {
       nextUsername = normalized;
     }
 
+    // Connexion sans code interdite sur un serveur exposé
+    if (IS_PRODUCTION && data.authMode === 'AUTO_DEVICE') {
+      throw new AppError(400, 'La connexion sans code est désactivée sur ce serveur.');
+    }
+
     // `USERNAME_PIN` exige un identifiant : on refuse un mode incohérent
     if (data.authMode === 'USERNAME_PIN') {
       const candidate = nextUsername ?? user.username;
@@ -397,7 +406,9 @@ export class AuthService {
       colorHex: user.colorHex,
       avatarUrl: user.avatarUrl,
       hasPin: Boolean(user.pinHash),
-      authMode: user.authMode,
+      // En production, un ancien profil encore en AUTO_DEVICE est présenté
+      // comme PIN_ONLY : le front ne propose jamais l'entrée sans code
+      authMode: IS_PRODUCTION && user.authMode === 'AUTO_DEVICE' ? 'PIN_ONLY' : user.authMode,
       // L'identifiant n'est pas un secret : il sert au formulaire « identifiant + PIN »
       username: user.username,
     }));
@@ -408,6 +419,11 @@ export class AuthService {
    * Sur la tablette de cuisine, sélectionner le profil ouvre la session.
    */
   async loginWithDevice(userId: string): Promise<PinSession> {
+    // Désactivé en production, même si la base contient encore AUTO_DEVICE
+    if (IS_PRODUCTION) {
+      throw new AppError(403, 'La connexion sans code est désactivée sur ce serveur.');
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!user) throw new AppError(404, 'Profil introuvable.');
@@ -512,7 +528,12 @@ export class AuthService {
    * Premier accès d'un profil : définit le code PIN (et l'email s'il manque),
    * puis connecte immédiatement.
    */
-  async setupPin(userId: string, pin: string, email?: string): Promise<PinSession> {
+  async setupPin(
+    userId: string,
+    pin: string,
+    email?: string,
+    proof: { sessionUserId?: string; password?: string } = {},
+  ): Promise<PinSession> {
     if (!PIN_REGEX.test(pin)) {
       throw new AppError(400, 'Le code PIN doit contenir exactement 4 chiffres.');
     }
@@ -522,6 +543,17 @@ export class AuthService {
 
     if (user.pinHash) {
       throw new AppError(409, 'Ce profil a déjà un code PIN. Connecte-toi avec ce code.');
+    }
+
+    // En production, poser le premier PIN exige de prouver qu'on est le
+    // titulaire : soit une session ouverte sur ce compte, soit son mot de passe.
+    if (IS_PRODUCTION && proof.sessionUserId !== user.id) {
+      const passwordOk = proof.password
+        ? await bcrypt.compare(proof.password, user.password)
+        : false;
+      if (!passwordOk) {
+        throw new AppError(401, 'Mot de passe du compte requis pour créer ton code PIN.');
+      }
     }
 
     let nextEmail = user.email;

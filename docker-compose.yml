@@ -59,6 +59,9 @@ services:
       JARVIS_INTEGRATION_KEY: ${JARVIS_INTEGRATION_KEY:?JARVIS_INTEGRATION_KEY manquant (voir .env.docker.example)}
       TERMINAL_SECRET: ${TERMINAL_SECRET:?TERMINAL_SECRET manquant (voir .env.docker.example)}
       INVITE_CODE: ${INVITE_CODE:?INVITE_CODE manquant (voir .env.docker.example)}
+      # Proxys devant l'API : 1 ici (Caddy du conteneur web). Derrière un second
+      # reverse proxy (Caddy global, tunnel), passer à 2.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       JARVIS_API_URL: ${JARVIS_API_URL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       # Web Push — optionnel : sans clés l'API démarre et désactive l'envoi

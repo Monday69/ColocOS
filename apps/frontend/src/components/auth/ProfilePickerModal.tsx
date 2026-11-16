@@ -91,6 +91,7 @@ export function ProfilePicker(
   const [pin, setPin] = useState('')
   const [firstPin, setFirstPin] = useState('')
   const [email, setEmail] = useState('')
+  const [accountPassword, setAccountPassword] = useState('')
   // Mode `USERNAME_PIN` : identifiant saisi avant le code
   const [usernameInput, setUsernameInput] = useState('')
   const [error, setError] = useState(false)
@@ -119,6 +120,7 @@ export function ProfilePicker(
     setPin('')
     setFirstPin('')
     setEmail('')
+    setAccountPassword('')
     setError(false)
     setMessage(null)
     hapticTap()
@@ -163,7 +165,12 @@ export function ProfilePicker(
       setError(false)
 
       try {
-        const result = await api.setupPin(selected.id, code, email.trim() || undefined)
+        const result = await api.setupPin(
+          selected.id,
+          code,
+          email.trim() || undefined,
+          accountPassword || undefined,
+        )
         finishAuthentication(result)
       } catch (err) {
         hapticError()
@@ -180,7 +187,7 @@ export function ProfilePicker(
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selected, busy, email],
+    [selected, busy, email, accountPassword],
   )
 
   const handleDigit = (digit: string) => {
@@ -428,6 +435,21 @@ export function ProfilePicker(
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="Email (optionnel)"
+            className="flex-1 bg-transparent font-body text-xs text-text-primary placeholder-text-tertiary focus:outline-none"
+          />
+        </label>
+      )}
+
+      {/* Premier code : le mot de passe du compte prouve que le profil est à toi */}
+      {isSetup && (
+        <label className="flex items-center gap-2 mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <KeyRound size={12} className="text-slate-500 flex-shrink-0" />
+          <input
+            type="password"
+            value={accountPassword}
+            onChange={(event) => setAccountPassword(event.target.value)}
+            placeholder="Mot de passe du compte"
+            autoComplete="current-password"
             className="flex-1 bg-transparent font-body text-xs text-text-primary placeholder-text-tertiary focus:outline-none"
           />
         </label>

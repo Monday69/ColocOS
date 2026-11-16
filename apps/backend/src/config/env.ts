@@ -77,6 +77,16 @@ const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().email('ADMIN_EMAIL doit être un email valide').optional(),
   ),
+
+  // ── Reverse proxies ───────────────────────────────────────────────────────
+  // Nombre de proxys de confiance devant l'API (Express `trust proxy`), pour
+  // que le rate limiting et les logs voient l'IP réelle du client.
+  // Défaut : 2 en production (Caddy global + Caddy du conteneur web), 0 sinon.
+  // Une valeur trop haute permet d'usurper l'IP via X-Forwarded-For.
+  TRUST_PROXY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(0).max(10).optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

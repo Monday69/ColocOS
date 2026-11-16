@@ -13,6 +13,12 @@ import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 export function createApp(): Application {
   const app = express();
 
+  // ── Proxys de confiance ────────────────────────────────────────────────────
+  // Sans ça, derrière Caddy toutes les requêtes portent l'IP du proxy : le rate
+  // limiting devient global (un seul visiteur peut bloquer tout le monde).
+  const trustProxy = env.TRUST_PROXY ?? (env.NODE_ENV === 'production' ? 2 : 0);
+  if (trustProxy > 0) app.set('trust proxy', trustProxy);
+
   // ── Sécurité ───────────────────────────────────────────────────────────────
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // Pour les assets GLTF

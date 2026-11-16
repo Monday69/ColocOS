@@ -135,6 +135,9 @@ export const SetupPinSchema = z.object({
   userId: z.string().uuid('userId doit être un UUID valide'),
   pin: pinSchema,
   email: emailSchema.optional(),
+  /// Mot de passe du compte : exigé en production sans session active,
+  /// sinon n'importe qui pourrait poser son PIN sur un profil encore vierge
+  password: z.string().min(1).max(200).optional(),
 });
 
 export type SetupPinDTO = z.infer<typeof SetupPinSchema>;

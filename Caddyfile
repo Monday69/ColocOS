@@ -12,6 +12,11 @@
 	# appareils du LAN tapent directement http://web:80.
 	auto_https disable_redirects
 	admin off
+	# Garde le X-Forwarded-For posé par un proxy en amont (Caddy global,
+	# cloudflared) : l'API peut ainsi limiter le débit par client réel.
+	servers {
+		trusted_proxies static private_ranges
+	}
 }
 
 # Handlers communs aux deux points d'écoute (443 et 80)

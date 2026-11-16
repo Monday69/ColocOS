@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authController } from '../controllers/auth.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { authenticate, authenticateOptional } from '../middlewares/auth.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — Auth Routes
@@ -91,6 +91,7 @@ router.get('/nfc', authController.nfcLogin.bind(authController));
 router.post(
   '/setup-pin',
   authRateLimiter,
+  authenticateOptional, // une session ouverte sur ce compte dispense du mot de passe
   authController.setupPin.bind(authController),
 );
 

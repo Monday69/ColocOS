@@ -117,10 +117,18 @@ class ApiClient {
       '/auth/login-pin',
       { method: 'POST', body: JSON.stringify({ userId, pin, username }) },
     );
-  setupPin = (userId: string, pin: string, email?: string) =>
+  setupPin = (userId: string, pin: string, email?: string, password?: string) =>
     this.request<{ user: AuthUser; tokens: { accessToken: string; refreshToken: string; expiresIn: number } }>(
       '/auth/setup-pin',
-      { method: 'POST', body: JSON.stringify({ userId, pin, ...(email ? { email } : {}) }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          userId,
+          pin,
+          ...(email ? { email } : {}),
+          ...(password ? { password } : {}),
+        }),
+      },
     );
 
   // Profil nutritionnel & biométrie

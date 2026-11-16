@@ -327,7 +327,10 @@ export class AuthController {
   async setupPin(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const dto = SetupPinSchema.parse(req.body);
-      const result = await authService.setupPin(dto.userId, dto.pin, dto.email);
+      const result = await authService.setupPin(dto.userId, dto.pin, dto.email, {
+        sessionUserId: req.user?.id,
+        password: dto.password,
+      });
 
       res.status(201).json({
         success: true,
