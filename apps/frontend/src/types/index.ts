@@ -756,6 +756,15 @@ export interface AuthSession {
   tokens: { accessToken: string; refreshToken: string };
 }
 
+/** Navigateur enregistré pour le compte (GET /auth/devices). */
+export interface TrustedDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string;
+  isCurrent: boolean;
+}
+
 /** Corps de POST /auth/register (code maître ou code d'invitation personnel). */
 export interface RegisterPayload {
   name: string;

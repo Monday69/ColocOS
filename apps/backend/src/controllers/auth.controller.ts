@@ -13,6 +13,7 @@ import {
 } from '../dtos/auth.dto';
 import { buildNfcUrl } from '../utils/publicOrigin';
 import { inviteService } from '../services/invite.service';
+import { trustedDeviceService } from '../services/trustedDevice.service';
 import { renderApproveForm, renderApproveResult } from '../utils/invitePages';
 import { AppError } from '../middlewares/errorHandler';
 import { ApiResponse, AuthUser } from '../types';
@@ -122,6 +123,9 @@ export class AuthController {
     try {
       const dto = RegisterSchema.parse(req.body);
       const result = await authService.register(dto);
+      // Inscription = preuve forte (code d'invitation + mot de passe) : on
+      // enregistre ce navigateur pour le compte
+      await trustedDeviceService.enroll(req, res, result.user.id);
 
       res.status(201).json({
         success: true,
@@ -144,6 +148,8 @@ export class AuthController {
     try {
       const dto = LoginSchema.parse(req.body);
       const result = await authService.login(dto);
+      // Email + mot de passe : ce navigateur devient un appareil de confiance
+      await trustedDeviceService.enroll(req, res, result.user.id);
 
       res.status(200).json({
         success: true,
@@ -227,9 +233,16 @@ export class AuthController {
    * GET /api/auth/profiles
    * Sélecteur « Qui cuisine aujourd'hui ? » (public, aucune donnée sensible).
    */
-  async profiles(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async profiles(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const profiles = await authService.listProfiles();
+      let profiles = await authService.listProfiles();
+
+      // En production, un navigateur inconnu ne voit aucun prénom : seulement
+      // les comptes déjà enregistrés sur cet appareil.
+      if (trustedDeviceService.enforced) {
+        const trusted = await trustedDeviceService.trustedUserIds(req);
+        profiles = profiles.filter((profile) => trusted.has(profile.id));
+      }
 
       res.status(200).json({
         success: true,
@@ -248,6 +261,20 @@ export class AuthController {
   async loginPin(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const dto = LoginPinSchema.parse(req.body);
+
+      // Le PIN est un second facteur : il n'est accepté que depuis un appareil
+      // déjà enregistré pour ce compte (vérifié AVANT le PIN, pour ne pas
+      // laisser deviner un code depuis un navigateur inconnu).
+      if (
+        trustedDeviceService.enforced &&
+        !(await trustedDeviceService.verify(req, res, dto.userId))
+      ) {
+        throw new AppError(
+          403,
+          'Appareil non reconnu : connecte-toi une fois avec ton email et ton mot de passe.',
+        );
+      }
+
       const result = await authService.loginWithPin(dto.userId, dto.pin, dto.username);
 
       res.status(200).json({
@@ -331,6 +358,8 @@ export class AuthController {
         sessionUserId: req.user?.id,
         password: dto.password,
       });
+      // PIN posé avec mot de passe ou session : l'appareil est de confiance
+      await trustedDeviceService.enroll(req, res, result.user.id);
 
       res.status(201).json({
         success: true,
@@ -377,6 +406,34 @@ export class AuthController {
         data: roommates,
         meta: { total: roommates.length },
       } satisfies ApiResponse<AuthUser[]>);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/auth/devices
+   * Appareils enregistrés pour le compte courant.
+   */
+  async listDevices(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+      const devices = await trustedDeviceService.list(req, req.user.id);
+      res.status(200).json({ success: true, data: devices } satisfies ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/auth/devices/:id
+   * Révoque un appareil : il faudra repasser par email + mot de passe dessus.
+   */
+  async revokeDevice(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError(401, 'Non authentifié.');
+      await trustedDeviceService.revoke(req.user.id, String(req.params.id));
+      res.status(200).json({ success: true, data: { revoked: true } } satisfies ApiResponse);
     } catch (err) {
       next(err);
     }

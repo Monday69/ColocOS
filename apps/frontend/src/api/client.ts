@@ -12,7 +12,7 @@ import type {
   GenerateGroceriesResult,
   ScrapedRecipePreview, CustomRecipe, CreateCustomRecipePayload,
   LoggedMeal, LoggedMealPayload, MealDaySummary, MealDayHistory,
-  RegisterPayload, AuthSession,
+  RegisterPayload, AuthSession, TrustedDevice,
 } from '@/types';
 
 const BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '/api';
@@ -97,6 +97,11 @@ class ApiClient {
     this.request<RecipeRecommendations>('/recipes/recommendations');
   getShoppingPredictions = () =>
     this.request<ShoppingPrediction[]>('/shopping/predictions');
+  // Appareils de confiance (le PIN n'est accepté que depuis l'un d'eux)
+  listDevices = () => this.request<TrustedDevice[]>('/auth/devices');
+  revokeDevice = (id: string) =>
+    this.request<{ revoked: boolean }>(`/auth/devices/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
   regenerateNfcBadge = () =>
     this.request<{ token: string; url: string }>('/auth/nfc/regenerate', { method: 'POST' });
   loginWithDevice = (userId: string) =>

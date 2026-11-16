@@ -266,7 +266,31 @@ export function ProfilePicker(
           </div>
         )}
 
-        {!loading && !loadError && (
+        {/* Navigateur inconnu : aucun profil n'est listé tant qu'on ne s'est pas
+            connecté une fois avec email + mot de passe sur cet appareil */}
+        {!loading && !loadError && profiles.length === 0 && (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center">
+            <Lock size={14} className="mx-auto text-slate-400" />
+            <p className="mt-2 font-body text-xs text-slate-300">
+              Cet appareil n’est pas encore enregistré.
+            </p>
+            <p className="mt-1 font-body text-[11px] leading-snug text-slate-500">
+              Connecte-toi une fois avec ton email et ton mot de passe : ensuite, ton code PIN
+              suffira sur cet appareil.
+            </p>
+            {onUsePassword && (
+              <button
+                type="button"
+                onClick={onUsePassword}
+                className="mt-3 w-full h-10 rounded-xl border border-accent/40 bg-accent/15 text-accent font-mono text-[11px] tracking-wider uppercase tap hover:bg-accent/25 transition-colors"
+              >
+                Se connecter
+              </button>
+            )}
+          </div>
+        )}
+
+        {!loading && !loadError && profiles.length > 0 && (
           <div className="grid grid-cols-3 gap-3 mt-6">
             {profiles.map((profile, index) => (
               <motion.button

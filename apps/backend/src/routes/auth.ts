@@ -131,4 +131,17 @@ router.get(
   authController.listRoommates.bind(authController),
 );
 
+// Appareils de confiance (sélecteur de profils + PIN)
+router.get(
+  '/devices',
+  authenticate,
+  authController.listDevices.bind(authController),
+);
+
+router.delete(
+  '/devices/:id',
+  authenticate,
+  authController.revokeDevice.bind(authController),
+);
+
 export default router;

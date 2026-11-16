@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, Flame, KeyRound, Loader2, Nfc, Save, ShieldCheck, Target, Trophy, User, X } from 'lucide-react'
+import { Activity, Flame, KeyRound, Loader2, MonitorSmartphone, Nfc, Save, ShieldCheck, Target, Trash2, Trophy, User, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/api/client'
 import { useAuth } from '@/store'
 import { toasts } from '@/components/ui/ToastProvider'
 import { WrappedModal } from '@/components/ui/WrappedModal'
 import { hapticSuccess, hapticTap } from '@/lib/haptics'
-import type { AthleteGoal, AthleteProfile, AuthMode, NutritionToday, UpcomingWorkouts, WeighIn } from '@/types'
+import type { AthleteGoal, AthleteProfile, AuthMode, NutritionToday, TrustedDevice, UpcomingWorkouts, WeighIn } from '@/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColocOS — AthleteProfileModal
@@ -116,6 +116,7 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
   const [username, setUsername] = useState('')
   const [authMode, setAuthMode] = useState<AuthMode>('AUTO_DEVICE')
   const [nfcUrl, setNfcUrl] = useState<string | null>(null)
+  const [devices, setDevices] = useState<TrustedDevice[] | null>(null)
   const [securitySaving, setSecuritySaving] = useState(false)
 
   const applyProfile = useCallback((next: AthleteProfile) => {
@@ -174,6 +175,39 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
     setUsername(user?.username ?? '')
     setAuthMode((user?.authMode as AuthMode) ?? 'AUTO_DEVICE')
   }, [user?.username, user?.authMode, open])
+
+  // Appareils de confiance : chargés à l'ouverture de l'onglet Sécurité
+  useEffect(() => {
+    if (!open || tab !== 'security') return
+    let cancelled = false
+    api
+      .listDevices()
+      .then((list) => {
+        if (!cancelled) setDevices(list)
+      })
+      .catch(() => {
+        if (!cancelled) setDevices([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, tab])
+
+  const handleRevokeDevice = async (device: TrustedDevice) => {
+    try {
+      await api.revokeDevice(device.id)
+      setDevices((current) => (current ?? []).filter((item) => item.id !== device.id))
+      hapticSuccess()
+      toasts.info(
+        'Appareil révoqué',
+        device.isCurrent
+          ? 'Ton code PIN ne fonctionnera plus ici sans mot de passe.'
+          : device.label,
+      )
+    } catch (err) {
+      toasts.error('Révocation impossible', err instanceof Error ? err.message : undefined)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -646,6 +680,58 @@ export function AthleteProfileModal({ open, onClose }: AthleteProfileModalProps)
                       Régénérer invalide immédiatement l'ancien badge.
                     </p>
                   </div>
+                )}
+              </div>
+
+              {/* Appareils de confiance */}
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex items-center gap-2">
+                  <MonitorSmartphone size={13} className="text-accent" />
+                  <span className="label-micro">Appareils enregistrés</span>
+                </div>
+                <p className="mt-1.5 font-sans text-[11px] leading-snug text-slate-400">
+                  Ton code PIN ne fonctionne que sur ces appareils. Révoque un téléphone perdu :
+                  il faudra repasser par ton mot de passe dessus.
+                </p>
+
+                {devices === null ? (
+                  <div className="mt-2.5 flex items-center gap-2 text-slate-500">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span className="font-mono text-[10px]">Chargement…</span>
+                  </div>
+                ) : devices.length === 0 ? (
+                  <p className="mt-2.5 font-mono text-[10px] text-slate-500">Aucun appareil enregistré.</p>
+                ) : (
+                  <ul className="mt-2.5 space-y-1.5">
+                    {devices.map((device) => (
+                      <li
+                        key={device.id}
+                        className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-2.5 py-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-sans text-[11px] text-slate-200">{device.label}</span>
+                            {device.isCurrent && (
+                              <span className="rounded-md bg-accent/15 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider text-accent">
+                                Cet appareil
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-mono text-[9px] text-slate-500">
+                            Utilisé le {new Date(device.lastUsedAt).toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeDevice(device)}
+                          aria-label={`Révoquer ${device.label}`}
+                          className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-slate-400 tap hover:text-red-300 hover:border-red-400/40"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 

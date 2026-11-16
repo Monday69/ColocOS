@@ -111,6 +111,7 @@ model User {
   weighIns         WeighIn[]
   workouts         WorkoutSync[]
   stockEvents      StockEvent[]
+  trustedDevices   TrustedDevice[]
 
   @@map("users")
 }
@@ -617,6 +618,26 @@ enum InviteRequestStatus {
 /// L'administrateur reçoit un email avec un lien d'approbation ; une fois
 /// approuvée, la demande porte un `code` à usage unique que le demandeur
 /// saisit dans le formulaire d'inscription.
+/// Navigateur enregistré pour un compte après une connexion forte.
+/// Le PIN n'est accepté que depuis un appareil de confiance (en production).
+model TrustedDevice {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Identifiant du navigateur (partagé par tous les comptes de cet appareil)
+  deviceId   String   @map("device_id") @db.VarChar(64)
+  userId     String   @map("user_id") @db.Uuid
+  /// SHA-256 (hex) du secret du cookie — jamais le secret en clair
+  tokenHash  String   @map("token_hash") @db.Char(64)
+  label      String   @db.VarChar(120)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, userId])
+  @@index([userId])
+  @@map("trusted_devices")
+}
+
 model InviteRequest {
   id            String              @id @default(uuid()) @db.Uuid
   name          String              @db.VarChar(100)

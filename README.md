@@ -53,7 +53,14 @@ Every expense is split between roommates; the balance screen shows who overpaid 
 ![Shared finances](docs/screenshots/finance-split.png)
 
 ### 🔐 Profiles, PINs and admin-approved invitations
-Shared-tablet first: a profile picker with a 4-digit PIN, an optional username + password mode, and a magic **NFC link** that opens a session when a phone taps a badge. New roommates request access from the login screen; an administrator receives an email (Resend) with a one-click approval link that mails back a single-use invitation code.
+Shared-tablet first, but safe on the open internet:
+
+- **Trusted devices.** A browser is enrolled for an account only after a strong sign-in (email + password, or sign-up with an invitation code). It receives an `HttpOnly; Secure; SameSite=Lax` cookie whose secret is stored **hashed** (SHA-256) in `trusted_devices`. One browser can hold several accounts, so a kitchen tablet serves the whole flat.
+- **PIN as a second factor.** In production the profile picker only lists accounts enrolled on *this* browser, and `POST /auth/login-pin` is rejected before the PIN is even checked when the device is unknown. A stranger opening the site sees no names, only a sign-in form.
+- **PIN chosen at sign-up**, hashed with bcrypt; trivial codes (`0000`, `1234`, years) are refused.
+- **Device management.** Each roommate can list and revoke their enrolled devices (lost phone).
+- **Invitations.** New roommates request access from the login screen; an administrator receives an email (Resend) with an approval link that mails back a single-use code bound to their address.
+- A magic **NFC link** can also open a session when a phone taps a badge.
 
 ![Profile picker and access request](docs/screenshots/auth-invite-flow.png)
 
