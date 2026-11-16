@@ -31,10 +31,52 @@ const PUBLIC_AUTH_PATHS = [
   '/auth/refresh',
 ];
 
+type RefreshOutcome = 'ok' | 'invalid' | 'offline';
+
 class ApiClient {
   private getToken = () => useStore.getState().token;
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  /** Un seul renouvellement à la fois, partagé par toutes les requêtes en 401. */
+  private refreshing: Promise<RefreshOutcome> | null = null;
+
+  /**
+   * Échange le refresh token contre une nouvelle paire de jetons. Chaque
+   * renouvellement repart pour une durée complète : tant que l'appli est
+   * utilisée régulièrement, la session n'expire jamais.
+   */
+  private refreshSession(): Promise<RefreshOutcome> {
+    if (!this.refreshing) {
+      this.refreshing = (async (): Promise<RefreshOutcome> => {
+        const refreshToken = useStore.getState().refreshToken;
+        if (!refreshToken) return 'invalid';
+        try {
+          const response = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (!response.ok) return 'invalid';
+          const body = (await response.json()) as ApiResponse<{
+            tokens: { accessToken: string; refreshToken: string };
+          }>;
+          if (!body.success || !body.data) return 'invalid';
+          useStore.setState({
+            token: body.data.tokens.accessToken,
+            refreshToken: body.data.tokens.refreshToken,
+          });
+          return 'ok';
+        } catch {
+          // Réseau coupé : on ne déconnecte pas, on réessaiera plus tard
+          return 'offline';
+        }
+      })().finally(() => {
+        this.refreshing = null;
+      });
+    }
+    return this.refreshing;
+  }
+
+  private async request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
     const token = this.getToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -44,6 +86,13 @@ class ApiClient {
     const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
     const isPublicAuth = PUBLIC_AUTH_PATHS.some((publicPath) => path.startsWith(publicPath));
     if (response.status === 401 && !isPublicAuth) {
+      // Jeton expiré : on tente un renouvellement silencieux, puis on rejoue
+      // la requête une seule fois
+      if (!retried) {
+        const outcome = await this.refreshSession();
+        if (outcome === 'ok') return this.request<T>(path, options, true);
+        if (outcome === 'offline') throw new Error('Connexion perdue, réessaie dans un instant.');
+      }
       useStore.getState().logout();
       throw new Error('Session expirée.');
     }

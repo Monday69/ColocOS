@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth.service';
 import {
   RegisterSchema,
@@ -172,6 +173,19 @@ export class AuthController {
     try {
       const { refreshToken } = RefreshTokenSchema.parse(req.body);
       const tokens = await authService.refreshAccessToken(refreshToken);
+
+      // En production, un refresh token ne se renouvelle que depuis un appareil
+      // de confiance pour ce compte : volé seul, il ne sert à rien, et révoquer
+      // l'appareil coupe le renouvellement.
+      if (trustedDeviceService.enforced) {
+        const payload = jwt.decode(refreshToken) as { userId?: string } | null;
+        const trusted =
+          Boolean(payload?.userId) &&
+          (await trustedDeviceService.verify(req, res, payload!.userId as string));
+        if (!trusted) {
+          throw new AppError(401, 'Appareil non reconnu : reconnecte-toi avec ton mot de passe.');
+        }
+      }
 
       res.status(200).json({
         success: true,
