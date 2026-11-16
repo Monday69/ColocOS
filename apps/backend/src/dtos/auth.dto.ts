@@ -47,6 +47,8 @@ export const RegisterSchema = z.object({
   avatarUrl: z.string().url('URL d\'avatar invalide').optional().nullable(),
   /// Exigé quand INVITE_CODE est configuré (toujours le cas en production)
   inviteCode: z.string().trim().max(100).optional(),
+  /// Code PIN choisi dès l'inscription (obligatoire en production)
+  pin: z.string().regex(/^\d{4}$/, 'Le code PIN doit contenir exactement 4 chiffres').optional(),
 });
 
 export type RegisterDTO = z.infer<typeof RegisterSchema>;

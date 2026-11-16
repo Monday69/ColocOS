@@ -763,4 +763,6 @@ export interface RegisterPayload {
   password: string;
   inviteCode: string;
   colorHex?: string;
+  /** Code PIN à 4 chiffres choisi dès l'inscription */
+  pin?: string;
 }

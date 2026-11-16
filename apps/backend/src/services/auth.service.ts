@@ -9,6 +9,7 @@ import { AppError } from '../middlewares/errorHandler';
 import { RegisterDTO, LoginDTO, UpdateProfileDTO } from '../dtos/auth.dto';
 import { AuthUser, JwtPayload } from '../types';
 import { safeEqual } from '../utils/safeCompare';
+import { isWeakPin, WEAK_PIN_MESSAGE } from '../utils/pinStrength';
 
 const IS_PRODUCTION = env.NODE_ENV === 'production';
 
@@ -113,6 +114,16 @@ export class AuthService {
       throw new AppError(403, "Code d'invitation invalide ou expiré.");
     }
 
+    // ── Code PIN choisi à l'inscription ───────────────────────────────────────
+    // En production le compte doit être utilisable tout de suite depuis le
+    // sélecteur de profils : pas de profil « 1er accès » à revendiquer.
+    if (IS_PRODUCTION && !data.pin) {
+      throw new AppError(400, 'Choisis un code PIN à 4 chiffres.');
+    }
+    if (data.pin && isWeakPin(data.pin)) {
+      throw new AppError(400, WEAK_PIN_MESSAGE);
+    }
+
     // ── Vérification unicité email ────────────────────────────────────────────
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
@@ -128,6 +139,7 @@ export class AuthService {
 
     // ── Hachage du mot de passe ───────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
+    const pinHash = data.pin ? await bcrypt.hash(data.pin, BCRYPT_ROUNDS) : null;
 
     // ── Création utilisateur (+ consommation du code d'invitation) ────────────
     // Le passage à USED est atomique avec la création du compte : pas de code
@@ -138,6 +150,7 @@ export class AuthService {
           name: data.name,
           email: data.email,
           password: hashedPassword,
+          pinHash,
           colorHex: data.colorHex,
           avatarUrl: data.avatarUrl ?? null,
           // Sur un serveur exposé, aucun profil ne s'ouvre sans code
@@ -545,6 +558,10 @@ export class AuthService {
       throw new AppError(409, 'Ce profil a déjà un code PIN. Connecte-toi avec ce code.');
     }
 
+    if (isWeakPin(pin)) {
+      throw new AppError(400, WEAK_PIN_MESSAGE);
+    }
+
     // En production, poser le premier PIN exige de prouver qu'on est le
     // titulaire : soit une session ouverte sur ce compte, soit son mot de passe.
     if (IS_PRODUCTION && proof.sessionUserId !== user.id) {
@@ -607,6 +624,9 @@ export class AuthService {
   async updatePin(userId: string, currentPin: string | null, pin: string): Promise<void> {
     if (!PIN_REGEX.test(pin)) {
       throw new AppError(400, 'Le code PIN doit contenir exactement 4 chiffres.');
+    }
+    if (isWeakPin(pin)) {
+      throw new AppError(400, WEAK_PIN_MESSAGE);
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });

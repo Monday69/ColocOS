@@ -28,6 +28,16 @@ const PASSWORD_RULES = [
   { label: '1 caractère spécial', test: (value: string) => /[^A-Za-z0-9]/.test(value) },
 ];
 
+/** Même règle que le serveur (utils/pinStrength.ts) : retour immédiat à l'écran. */
+function isWeakPin(pin: string): boolean {
+  if (!/^\d{4}$/.test(pin)) return true;
+  const d = pin.split('').map(Number);
+  if (d.every((x) => x === d[0])) return true;
+  const steps = d.slice(1).map((x, i) => x - d[i]);
+  if (steps.every((s) => s === 1) || steps.every((s) => s === -1)) return true;
+  return /^(19|20)\d\d$/.test(pin);
+}
+
 const fieldClass =
   'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 font-body text-sm text-white focus:outline-none focus:border-accent/60';
 
@@ -53,6 +63,8 @@ export const AuthModal = () => {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [registerPin, setRegisterPin] = useState('');
+  const [registerPinConfirm, setRegisterPinConfirm] = useState('');
   const [colorHex, setColorHex] = useState(AVATAR_COLORS[0]);
 
   // Lien reçu par email : /?invite=COLOC-XXXX&email=…
@@ -73,6 +85,16 @@ export const AuthModal = () => {
     [registerPassword],
   );
   const passwordValid = passwordChecks.every((check) => check.ok);
+
+  const pinComplete = /^\d{4}$/.test(registerPin);
+  const pinError = !pinComplete
+    ? ''
+    : isWeakPin(registerPin)
+      ? 'Code trop facile à deviner (0000, 1234, année…).'
+      : registerPinConfirm.length === 4 && registerPinConfirm !== registerPin
+        ? 'Les deux codes ne correspondent pas.'
+        : '';
+  const pinValid = pinComplete && !pinError && registerPinConfirm === registerPin;
 
   // Si déjà connecté, on n'affiche rien
   if (isAuthenticated) return null;
@@ -120,6 +142,10 @@ export const AuthModal = () => {
       setError('Le mot de passe ne respecte pas les règles de sécurité.');
       return;
     }
+    if (!pinValid) {
+      setError(pinError || 'Choisis et confirme ton code PIN à 4 chiffres.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -131,6 +157,7 @@ export const AuthModal = () => {
         password: registerPassword,
         inviteCode: inviteCode.trim().toUpperCase(),
         colorHex,
+        pin: registerPin,
       });
       // Connexion immédiate : le store persiste la session.
       setAuth(response.tokens.accessToken, response.tokens.refreshToken, response.user);
@@ -370,6 +397,40 @@ export const AuthModal = () => {
               ))}
             </ul>
 
+            {/* PIN choisi tout de suite : le profil est prêt dans le sélecteur */}
+            <div className="flex flex-col gap-1">
+              <span className="label-micro">Code PIN (4 chiffres, pour te reconnecter vite)</span>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  value={registerPin}
+                  onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="••••"
+                  autoComplete="new-password"
+                  aria-label="Code PIN"
+                  className={`${fieldClass} font-mono tracking-[0.5em] text-center`}
+                  required
+                />
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  value={registerPinConfirm}
+                  onChange={(e) => setRegisterPinConfirm(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="Confirmer"
+                  autoComplete="new-password"
+                  aria-label="Confirmer le code PIN"
+                  className={`${fieldClass} font-mono tracking-[0.5em] text-center`}
+                  required
+                />
+              </div>
+              {pinError && <p className="font-body text-[10px] text-red-300">{pinError}</p>}
+            </div>
+
             <label className="flex flex-col gap-1">
               <span className="label-micro">Code d&apos;invitation</span>
               <input
@@ -408,7 +469,7 @@ export const AuthModal = () => {
 
             <button
               type="submit"
-              disabled={loading || !passwordValid}
+              disabled={loading || !passwordValid || !pinValid}
               className="w-full h-11 rounded-2xl border border-accent/40 bg-accent/15 text-accent
                          font-mono text-[11px] tracking-wider uppercase tap ease-ios
                          hover:bg-accent/25 disabled:opacity-40 transition-all inline-flex items-center justify-center gap-2"
